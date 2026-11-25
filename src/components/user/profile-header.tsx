@@ -1,19 +1,19 @@
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 import { UserAvatar } from "@/components/user-avatar";
-import { EditProfileDialog } from "./edit-profile-dialog";
-import { FollowButton } from "./follow-button";
+import type { ProfileFieldsFragment } from "@/generated/gql/graphql";
 import { formatCount, formatJoined } from "@/lib/format";
-import type { MockUser } from "@/lib/mock-data";
+import { EditProfileDialog, type ProfileSave } from "./edit-profile-dialog";
+import { FollowButton } from "./follow-button";
 
 export function ProfileHeader({
   user,
   isSelf,
-  onProfileChange,
+  onSave,
 }: {
-  user: MockUser;
+  user: ProfileFieldsFragment;
   isSelf: boolean;
-  onProfileChange?: (edits: Partial<MockUser>) => void;
+  onSave: (edits: ProfileSave) => Promise<string | void>;
 }) {
   return (
     <section className="border-b">
@@ -30,17 +30,18 @@ export function ProfileHeader({
           <UserAvatar
             name={user.displayName}
             username={user.username}
-            src={user.avatarUrl}
+            src={user.avatarUrl ?? undefined}
             className="-mt-10 size-20 border-4 border-background after:hidden sm:-mt-[67px] sm:size-[134px]"
             fallbackClassName="text-3xl sm:text-4xl"
           />
           <div className="pt-3">
             {isSelf ? (
-              <EditProfileDialog user={user} onSave={(edits) => onProfileChange?.(edits)} />
+              <EditProfileDialog user={user} onSave={onSave} />
             ) : (
               <FollowButton
-                initialFollowing={user.viewerIsFollowing}
+                userId={user.id}
                 displayName={user.displayName}
+                following={user.viewerIsFollowing}
               />
             )}
           </div>
@@ -59,17 +60,25 @@ export function ProfileHeader({
         </p>
 
         <div className="mt-3 flex gap-5 text-sm">
-          <Link href={`/${user.username}/following`} className="hover:underline">
+          <Link
+            href={`/${user.username}/following`}
+            className="hover:underline"
+          >
             <span className="font-bold text-foreground">
               {formatCount(user.followingCount) || 0}
             </span>{" "}
             <span className="text-muted-foreground">Following</span>
           </Link>
-          <Link href={`/${user.username}/followers`} className="hover:underline">
+          <Link
+            href={`/${user.username}/followers`}
+            className="hover:underline"
+          >
             <span className="font-bold text-foreground">
               {formatCount(user.followerCount) || 0}
             </span>{" "}
-            <span className="text-muted-foreground">Followers</span>
+            <span className="text-muted-foreground">
+              {user.followerCount === 1 ? "Follower" : "Followers"}
+            </span>
           </Link>
         </div>
       </div>

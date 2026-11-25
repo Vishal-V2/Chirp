@@ -1,52 +1,111 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "urql";
 import { PageHeader } from "@/components/layout/page-header";
+import { ProfileQuery, UpdateProfileMutation } from "@/graphql/client/users";
+import { deleteProfileImage, uploadProfileImage } from "@/lib/upload";
+import type { ProfileSave } from "./edit-profile-dialog";
 import { ProfileHeader } from "./profile-header";
 import { ProfileTabs } from "./profile-tabs";
-import type { MockTweet, MockUser } from "@/lib/mock-data";
 
-/**
- * Holds the profile in client state so edits show up immediately.
- * With the real API this becomes the upsertProfile mutation + cache update.
- */
+function ProfileSkeleton() {
+  return (
+    <div role="status" aria-label="Loading profile">
+      <div className="aspect-[3/1] animate-pulse bg-muted" />
+      <div className="space-y-3 px-4 py-4">
+        <div className="-mt-14 size-20 animate-pulse rounded-full border-4 border-background bg-muted sm:size-[134px]" />
+        <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+      </div>
+    </div>
+  );
+}
+
+/** A user's profile page, from the GraphQL API. */
 export function ProfileView({
-  initialUser,
+  username,
   isSelf,
-  posts,
-  replies,
-  likes,
 }: {
-  initialUser: MockUser;
+  username: string;
   isSelf: boolean;
-  posts: MockTweet[];
-  replies: MockTweet[];
-  likes: MockTweet[];
 }) {
-  const [user, setUser] = useState(initialUser);
-  // Show the edited name/avatar on the user's own tweets too.
-  const withAuthor = (t: MockTweet) =>
-    t.author.id === user.id ? { ...t, author: user } : t;
+  const router = useRouter();
+  const [{ data, error }, reexecute] = useQuery({
+    query: ProfileQuery,
+    variables: { username },
+  });
+  const [, updateProfile] = useMutation(UpdateProfileMutation);
+  const user = data?.user;
+
+  async function save(edits: ProfileSave): Promise<string | void> {
+    if (!user) return "Profile not loaded yet.";
+    try {
+      // Upload any new images first, then save everything in one go.
+      const [avatarUrl, bannerUrl] = await Promise.all([
+        edits.avatarFile
+          ? uploadProfileImage(user.id, "avatar", edits.avatarFile)
+          : edits.avatarUrl,
+        edits.bannerFile
+          ? uploadProfileImage(user.id, "banner", edits.bannerFile)
+          : edits.bannerUrl,
+      ]);
+      const result = await updateProfile({
+        input: {
+          displayName: edits.displayName,
+          bio: edits.bio,
+          avatarUrl,
+          bannerUrl,
+        },
+      });
+      if (result.error) {
+        return (
+          result.error.graphQLErrors[0]?.message ??
+          "Couldn't save your profile."
+        );
+      }
+      // Remove images that were replaced or removed (best effort).
+      if (user.avatarUrl !== avatarUrl) void deleteProfileImage(user.avatarUrl);
+      if (user.bannerUrl !== bannerUrl) void deleteProfileImage(user.bannerUrl);
+      // Refresh server-rendered parts (sidebar account button) with the new name/photo.
+      router.refresh();
+    } catch (e) {
+      return e instanceof Error ? e.message : "Couldn't save your profile.";
+    }
+  }
 
   return (
     <>
       <PageHeader
         back
-        title={user.displayName}
-        subtitle={`${posts.length} ${posts.length === 1 ? "post" : "posts"}`}
+        title={user?.displayName ?? "Profile"}
+        subtitle={
+          user
+            ? `${user.tweetCount} ${user.tweetCount === 1 ? "post" : "posts"}`
+            : undefined
+        }
       />
-      <ProfileHeader
-        user={user}
-        isSelf={isSelf}
-        onProfileChange={(edits) => setUser((u) => ({ ...u, ...edits }))}
-      />
-      <ProfileTabs
-        username={user.username}
-        isSelf={isSelf}
-        posts={posts.map(withAuthor)}
-        replies={replies.map(withAuthor)}
-        likes={likes.map(withAuthor)}
-      />
+      {user ? (
+        <>
+          <ProfileHeader user={user} isSelf={isSelf} onSave={save} />
+          <ProfileTabs username={user.username} isSelf={isSelf} />
+        </>
+      ) : error ? (
+        <div className="px-4 py-8 text-center">
+          <p className="text-muted-foreground">
+            Couldn&apos;t load this profile.
+          </p>
+          <button
+            type="button"
+            onClick={() => reexecute({ requestPolicy: "network-only" })}
+            className="mt-3 h-9 rounded-full bg-primary px-4 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <ProfileSkeleton />
+      )}
     </>
   );
 }

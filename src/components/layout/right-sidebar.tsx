@@ -1,11 +1,22 @@
 import { Search } from "lucide-react";
-import Link from "next/link";
-import { FollowButton } from "@/components/user/follow-button";
-import { UserAvatar } from "@/components/user-avatar";
 import { formatCount } from "@/lib/format";
-import { trends, whoToFollow } from "@/lib/mock-data";
+import { WhoToFollow } from "./who-to-follow";
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+// Placeholder topics until Chirp has hashtags/search.
+const trends = [
+  { category: "Technology · Trending", topic: "Next.js 16", posts: 12400 },
+  { category: "Design · Trending", topic: "#DesignSystems", posts: 5310 },
+  { category: "Trending", topic: "Postgres", posts: 8820 },
+  { category: "Programming · Trending", topic: "TypeScript", posts: 30100 },
+];
+
+function Panel({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="overflow-hidden rounded-2xl border">
       <h2 className="px-4 pt-3 pb-1 text-xl font-extrabold">{title}</h2>
@@ -32,8 +43,13 @@ export function RightSidebar() {
         <ul>
           {trends.map((trend) => (
             <li key={trend.topic}>
-              <a href="#" className="block px-4 py-3 transition-colors hover:bg-muted/60">
-                <p className="text-xs text-muted-foreground">{trend.category}</p>
+              <a
+                href="#"
+                className="block px-4 py-3 transition-colors hover:bg-muted/60"
+              >
+                <p className="text-xs text-muted-foreground">
+                  {trend.category}
+                </p>
                 <p className="font-bold">{trend.topic}</p>
                 <p className="text-xs text-muted-foreground">
                   {formatCount(trend.posts)} posts
@@ -44,34 +60,7 @@ export function RightSidebar() {
         </ul>
       </Panel>
 
-      <Panel title="Who to follow">
-        <ul>
-          {whoToFollow.map((user) => (
-            <li
-              key={user.id}
-              className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/60"
-            >
-              <Link
-                href={`/${user.username}`}
-                className="flex min-w-0 flex-1 items-center gap-3"
-              >
-                <UserAvatar name={user.displayName} username={user.username} />
-                <div className="min-w-0 flex-1 leading-tight">
-                  <p className="truncate font-bold hover:underline">{user.displayName}</p>
-                  <p className="truncate text-sm text-muted-foreground">
-                    @{user.username}
-                  </p>
-                </div>
-              </Link>
-              <FollowButton
-                initialFollowing={user.viewerIsFollowing}
-                displayName={user.displayName}
-                className="h-8 min-w-20"
-              />
-            </li>
-          ))}
-        </ul>
-      </Panel>
+      <WhoToFollow />
 
       <p className="px-4 text-xs text-muted-foreground">© 2026 Chirp</p>
     </div>

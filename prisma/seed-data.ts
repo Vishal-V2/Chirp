@@ -1,5 +1,5 @@
-// Temporary sample data for building the UI. Shapes mirror the GraphQL
-// schema so swapping in real queries later is a small change.
+// Sample users, tweets and replies for the dev seed (npm run db:seed).
+// Originally the UI's mock data; kept so the seeded database matches it.
 
 export type MockUser = {
   id: string;

@@ -7,7 +7,7 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { currentUser, tweets, users, type MockUser } from "../src/lib/mock-data";
+import { currentUser, tweets, users, type MockUser } from "./seed-data";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DIRECT_URL }),

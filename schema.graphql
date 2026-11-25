@@ -12,7 +12,7 @@ type Mutation {
   unfollow(userId: ID!): User!
   unlikeTweet(id: ID!): Tweet!
   unretweet(id: ID!): Tweet!
-  upsertProfile(input: ProfileInput!): User!
+  updateProfile(input: UpdateProfileInput!): User!
 }
 
 type PageInfo {
@@ -22,20 +22,14 @@ type PageInfo {
   startCursor: String
 }
 
-input ProfileInput {
-  avatarUrl: String
-  bannerUrl: String
-  bio: String
-  displayName: String!
-  username: String!
-}
-
 type Query {
   exploreFeed(after: String, before: String, first: Int, last: Int): QueryExploreFeedConnection!
   homeFeed(after: String, before: String, first: Int, last: Int): QueryHomeFeedConnection!
+  likedTweets(after: String, before: String, first: Int, last: Int): QueryLikedTweetsConnection!
   me: User
   tweet(id: ID!): Tweet
   user(username: String!): User
+  whoToFollow(first: Int = 3): [User!]!
 }
 
 type QueryExploreFeedConnection {
@@ -54,6 +48,16 @@ type QueryHomeFeedConnection {
 }
 
 type QueryHomeFeedConnectionEdge {
+  cursor: String!
+  node: Tweet!
+}
+
+type QueryLikedTweetsConnection {
+  edges: [QueryLikedTweetsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryLikedTweetsConnectionEdge {
   cursor: String!
   node: Tweet!
 }
@@ -82,6 +86,13 @@ type TweetRepliesConnection {
 type TweetRepliesConnectionEdge {
   cursor: String!
   node: Tweet!
+}
+
+input UpdateProfileInput {
+  avatarUrl: String
+  bannerUrl: String
+  bio: String
+  displayName: String!
 }
 
 type User {

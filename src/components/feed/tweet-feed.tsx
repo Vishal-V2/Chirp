@@ -1,13 +1,38 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "urql";
+import type { TypedDocumentNode } from "@graphql-typed-document-node/core";
+import { useQuery, type AnyVariables } from "urql";
 import { TweetCard } from "@/components/tweet/tweet-card";
-import { ExploreFeedQuery, HomeFeedQuery } from "@/graphql/client/tweets";
+import type { TweetFieldsFragment } from "@/generated/gql/graphql";
 
 const PAGE_SIZE = 20;
 
-export type FeedKind = "explore" | "following";
+type Connection = {
+  edges: { node: TweetFieldsFragment }[];
+  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+};
+
+type PageVariables = { first: number; after?: string | null };
+
+/**
+ * Where a feed's tweets come from: any paginated query whose variables include
+ * `first`/`after`, plus how to find the tweet list in its result.
+ */
+export type FeedSource<Data, Vars extends PageVariables> = {
+  query: TypedDocumentNode<Data, Vars>;
+  /** Variables other than first/after. */
+  variables: Omit<Vars, "first" | "after">;
+  select: (data: Data) => Connection | null | undefined;
+  empty: { title: string; body: string };
+};
+
+/** Helper so TypeScript infers the source's types from its query. */
+export function feedSource<Data, Vars extends PageVariables>(
+  source: FeedSource<Data, Vars>,
+) {
+  return source;
+}
 
 function TweetSkeleton() {
   return (
@@ -52,35 +77,24 @@ function LoadMoreTrigger({ onVisible }: { onVisible: () => void }) {
 }
 
 /** One page of the feed. The next page renders after it when you scroll down. */
-function FeedPage({
-  kind,
+function FeedPage<Data, Vars extends PageVariables>({
+  source,
   after,
   isFirst,
   isLast,
   onLoadMore,
 }: {
-  kind: FeedKind;
+  source: FeedSource<Data, Vars>;
   after: string | null;
   isFirst: boolean;
   isLast: boolean;
   onLoadMore: (cursor: string) => void;
 }) {
-  // One typed query per feed; the one not in use is paused.
-  const variables = { first: PAGE_SIZE, after };
-  const [home, reexecuteHome] = useQuery({
-    query: HomeFeedQuery,
-    variables,
-    pause: kind !== "following",
+  const [{ data, fetching, error }, reexecute] = useQuery<Data, AnyVariables>({
+    query: source.query,
+    variables: { ...source.variables, first: PAGE_SIZE, after },
   });
-  const [explore, reexecuteExplore] = useQuery({
-    query: ExploreFeedQuery,
-    variables,
-    pause: kind !== "explore",
-  });
-  const { fetching, error } = kind === "following" ? home : explore;
-  const reexecute = kind === "following" ? reexecuteHome : reexecuteExplore;
-  const connection =
-    kind === "following" ? home.data?.homeFeed : explore.data?.exploreFeed;
+  const connection = data ? source.select(data) : undefined;
 
   if (!connection) {
     if (error) {
@@ -97,6 +111,9 @@ function FeedPage({
         </div>
       );
     }
+    if (data && !fetching) {
+      return <EmptyState title={source.empty.title} body={source.empty.body} />;
+    }
     return (
       <div role="status" aria-label="Loading posts">
         {Array.from({ length: isFirst ? 5 : 2 }, (_, i) => (
@@ -107,14 +124,7 @@ function FeedPage({
   }
 
   if (isFirst && connection.edges.length === 0) {
-    return kind === "following" ? (
-      <EmptyState
-        title="Welcome to Chirp!"
-        body="Posts from you and the people you follow show up here. Post something, or follow a few people from “Who to follow”."
-      />
-    ) : (
-      <EmptyState title="No posts yet" body="Be the first to post something." />
-    );
+    return <EmptyState title={source.empty.title} body={source.empty.body} />;
   }
 
   const { hasNextPage, endCursor } = connection.pageInfo;
@@ -131,8 +141,12 @@ function FeedPage({
   );
 }
 
-/** Infinite-scrolling list of tweets from the GraphQL API. */
-export function TweetFeed({ kind }: { kind: FeedKind }) {
+/** Infinite-scrolling list of tweets from any paginated tweet query. */
+export function TweetFeed<Data, Vars extends PageVariables>({
+  source,
+}: {
+  source: FeedSource<Data, Vars>;
+}) {
   // Cursor of each loaded page; null = the first page.
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
 
@@ -141,12 +155,14 @@ export function TweetFeed({ kind }: { kind: FeedKind }) {
       {cursors.map((after, i) => (
         <FeedPage
           key={after ?? "first"}
-          kind={kind}
+          source={source}
           after={after}
           isFirst={i === 0}
           isLast={i === cursors.length - 1}
           onLoadMore={(cursor) =>
-            setCursors((list) => (list.includes(cursor) ? list : [...list, cursor]))
+            setCursors((list) =>
+              list.includes(cursor) ? list : [...list, cursor],
+            )
           }
         />
       ))}
