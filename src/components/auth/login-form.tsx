@@ -31,6 +31,12 @@ export function LoginForm({ next, linkError }: { next?: string; linkError?: stri
         required
         error={state.fieldErrors?.password}
       />
+      <Link
+        href="/forgot-password"
+        className="-mt-2 self-end text-sm font-medium text-primary hover:underline"
+      >
+        Forgot password?
+      </Link>
       <SubmitButton pending={pending}>Log in</SubmitButton>
       <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{" "}

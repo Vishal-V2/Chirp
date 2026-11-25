@@ -2,9 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /** Pages anyone can open without signing in. */
-const PUBLIC_PATHS = ["/login", "/signup", "/auth/"];
+const PUBLIC_PATHS = ["/login", "/signup", "/forgot-password", "/auth/"];
 /** Pages a signed-in user should skip. */
-const GUEST_ONLY = ["/login", "/signup"];
+const GUEST_ONLY = ["/login", "/signup", "/forgot-password"];
 
 const matches = (path: string, list: string[]) =>
   list.some((p) => (p.endsWith("/") ? path.startsWith(p) : path === p));
@@ -40,6 +40,14 @@ export async function proxy(request: NextRequest) {
 
   // The GraphQL API answers signed-out requests itself (with UNAUTHENTICATED errors).
   if (path.startsWith("/api/")) return response;
+
+  // Reached /reset-password without a valid reset link (e.g. it expired).
+  if (!signedIn && path === "/reset-password") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = `?error=${encodeURIComponent("Your reset link has expired. Request a new one with “Forgot password?”.")}`;
+    return NextResponse.redirect(url);
+  }
 
   if (!signedIn && !matches(path, PUBLIC_PATHS)) {
     const url = request.nextUrl.clone();
