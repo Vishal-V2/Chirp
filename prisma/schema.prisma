@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+generator pothos {
+  provider = "prisma-pothos-types"
+  output   = "../src/generated/pothos-types.ts"
+  clientOutput = "./prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// App profile. `id` equals the Supabase Auth user id (auth.users.id).
+model User {
+  id          String   @id @db.Uuid
+  username    String   @unique @db.VarChar(15)
+  displayName String   @db.VarChar(50)
+  bio         String?  @db.VarChar(160)
+  avatarUrl   String?
+  bannerUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tweets    Tweet[]
+  likes     Like[]
+  retweets  Retweet[]
+  followers Follow[] @relation("following")
+  following Follow[] @relation("follower")
+}
+
+model Tweet {
+  id        String   @id @default(cuid())
+  content   String   @db.VarChar(280)
+  mediaUrls String[]
+  createdAt DateTime @default(now())
+
+  authorId String @db.Uuid
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  parentId String?
+  parent   Tweet?  @relation("replies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Tweet[] @relation("replies")
+
+  likes    Like[]
+  retweets Retweet[]
+
+  @@index([authorId, createdAt(sort: Desc)])
+  @@index([parentId, createdAt])
+  @@index([createdAt(sort: Desc)])
+}
+
+model Like {
+  userId    String   @db.Uuid
+  tweetId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tweetId])
+  @@index([tweetId])
+}
+
+model Retweet {
+  userId    String   @db.Uuid
+  tweetId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tweetId])
+  @@index([tweetId])
+}
+
+model Follow {
+  followerId  String   @db.Uuid
+  followingId String   @db.Uuid
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+}

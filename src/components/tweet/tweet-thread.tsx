@@ -1,0 +1,131 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMutation, useQuery } from "urql";
+import { useViewer } from "@/components/viewer-provider";
+import { CreateTweetMutation, TweetPageQuery } from "@/graphql/client/tweets";
+import { TweetCard } from "./tweet-card";
+import { TweetComposer } from "./tweet-composer";
+import { TweetDetail } from "./tweet-detail";
+
+const REPLY_INPUT_ID = "reply-composer";
+const REPLIES_PAGE = 50;
+
+function ThreadSkeleton() {
+  return (
+    <div className="space-y-3 px-4 py-4" role="status" aria-label="Loading post">
+      <div className="flex items-center gap-3">
+        <div className="size-10 animate-pulse rounded-full bg-muted" />
+        <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+      </div>
+      <div className="h-5 w-full animate-pulse rounded bg-muted" />
+      <div className="h-5 w-3/4 animate-pulse rounded bg-muted" />
+    </div>
+  );
+}
+
+/**
+ * Single-tweet page body: parent tweets above, the focused tweet,
+ * a reply box, then replies — all from the GraphQL API.
+ */
+export function TweetThread({ tweetId }: { tweetId: string }) {
+  const router = useRouter();
+  const viewer = useViewer();
+  const [repliesFirst, setRepliesFirst] = useState(REPLIES_PAGE);
+  const [{ data, error, fetching }, reexecute] = useQuery({
+    query: TweetPageQuery,
+    variables: { id: tweetId, repliesFirst },
+  });
+  const [, createTweet] = useMutation(CreateTweetMutation);
+  const focused = useRef<HTMLDivElement>(null);
+  const scrolled = useRef(false);
+
+  const tweet = data?.tweet;
+  const ancestorCount = tweet?.ancestors.length ?? 0;
+
+  // With parent tweets above, start scrolled to the focused tweet (once).
+  useEffect(() => {
+    if (ancestorCount > 0 && !scrolled.current) {
+      scrolled.current = true;
+      focused.current?.scrollIntoView({ block: "start" });
+    }
+  }, [ancestorCount]);
+
+  if (!tweet) {
+    if (fetching) return <ThreadSkeleton />;
+    if (error) {
+      return (
+        <div className="px-4 py-8 text-center">
+          <p className="text-muted-foreground">Couldn&apos;t load this post.</p>
+          <button
+            type="button"
+            onClick={() => reexecute({ requestPolicy: "network-only" })}
+            className="mt-3 h-9 rounded-full bg-primary px-4 text-sm font-bold text-primary-foreground hover:bg-primary/90"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    // Deleted while you were looking at it.
+    return (
+      <div className="mx-auto max-w-sm px-8 py-12">
+        <p className="text-3xl font-extrabold">This post doesn&apos;t exist</p>
+        <p className="mt-2 text-muted-foreground">It may have been deleted.</p>
+        <Link href="/" className="mt-4 inline-block font-medium text-primary hover:underline">
+          Back to home
+        </Link>
+      </div>
+    );
+  }
+
+  async function reply(content: string) {
+    const result = await createTweet({ content, parentId: tweetId });
+    if (result.error) {
+      return result.error.graphQLErrors[0]?.message ?? "Couldn't post your reply.";
+    }
+  }
+
+  const replies = tweet.replies.edges.map((e) => e.node);
+
+  return (
+    <>
+      {tweet.ancestors.map((t) => (
+        <TweetCard key={t.id} tweet={t} threadLine showReplyingTo={false} />
+      ))}
+
+      {/* min-h keeps room to scroll the focused tweet to the top. */}
+      <div ref={focused} className="min-h-[calc(100dvh-53px)] scroll-mt-[53px]">
+        <TweetDetail
+          tweet={tweet}
+          onReply={() => document.getElementById(REPLY_INPUT_ID)?.focus()}
+          onDeleted={() => router.push("/")}
+        />
+        {viewer && (
+          <TweetComposer
+            placeholder="Post your reply"
+            submitLabel="Reply"
+            replyingTo={tweet.author.username}
+            textareaId={REPLY_INPUT_ID}
+            author={viewer}
+            onPost={reply}
+          />
+        )}
+        {replies.map((r) => (
+          <TweetCard key={r.id} tweet={r} showReplyingTo={false} />
+        ))}
+        {tweet.replies.pageInfo.hasNextPage && (
+          <button
+            type="button"
+            onClick={() => setRepliesFirst((n) => n + REPLIES_PAGE)}
+            className="w-full px-4 py-4 text-left text-primary transition-colors hover:bg-muted/40"
+          >
+            Show more replies
+          </button>
+        )}
+      </div>
+    </>
+  );
+}

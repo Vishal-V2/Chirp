@@ -1,0 +1,121 @@
+"""
+A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
+"""
+scalar DateTime
+
+type Mutation {
+  createTweet(content: String!, mediaUrls: [String!], parentId: ID): Tweet!
+  deleteTweet(id: ID!): Boolean!
+  follow(userId: ID!): User!
+  likeTweet(id: ID!): Tweet!
+  retweet(id: ID!): Tweet!
+  unfollow(userId: ID!): User!
+  unlikeTweet(id: ID!): Tweet!
+  unretweet(id: ID!): Tweet!
+  upsertProfile(input: ProfileInput!): User!
+}
+
+type PageInfo {
+  endCursor: String
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+}
+
+input ProfileInput {
+  avatarUrl: String
+  bannerUrl: String
+  bio: String
+  displayName: String!
+  username: String!
+}
+
+type Query {
+  exploreFeed(after: String, before: String, first: Int, last: Int): QueryExploreFeedConnection!
+  homeFeed(after: String, before: String, first: Int, last: Int): QueryHomeFeedConnection!
+  me: User
+  tweet(id: ID!): Tweet
+  user(username: String!): User
+}
+
+type QueryExploreFeedConnection {
+  edges: [QueryExploreFeedConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryExploreFeedConnectionEdge {
+  cursor: String!
+  node: Tweet!
+}
+
+type QueryHomeFeedConnection {
+  edges: [QueryHomeFeedConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryHomeFeedConnectionEdge {
+  cursor: String!
+  node: Tweet!
+}
+
+type Tweet {
+  ancestors: [Tweet!]!
+  author: User!
+  content: String!
+  createdAt: DateTime!
+  id: ID!
+  likeCount: Int!
+  mediaUrls: [String!]!
+  parent: Tweet
+  replies(after: String, before: String, first: Int, last: Int): TweetRepliesConnection!
+  replyCount: Int!
+  retweetCount: Int!
+  viewerHasLiked: Boolean!
+  viewerHasRetweeted: Boolean!
+}
+
+type TweetRepliesConnection {
+  edges: [TweetRepliesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type TweetRepliesConnectionEdge {
+  cursor: String!
+  node: Tweet!
+}
+
+type User {
+  avatarUrl: String
+  bannerUrl: String
+  bio: String
+  createdAt: DateTime!
+  displayName: String!
+  followerCount: Int!
+  followingCount: Int!
+  id: ID!
+  replies(after: String, before: String, first: Int, last: Int): UserRepliesConnection!
+  tweetCount: Int!
+  tweets(after: String, before: String, first: Int, last: Int): UserTweetsConnection!
+  username: String!
+  viewerIsFollowing: Boolean!
+}
+
+type UserRepliesConnection {
+  edges: [UserRepliesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type UserRepliesConnectionEdge {
+  cursor: String!
+  node: Tweet!
+}
+
+type UserTweetsConnection {
+  edges: [UserTweetsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type UserTweetsConnectionEdge {
+  cursor: String!
+  node: Tweet!
+}
