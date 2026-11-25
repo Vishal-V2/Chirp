@@ -28,8 +28,9 @@ export const UserPostsQuery = graphql(`
   query UserPosts($username: String!, $first: Int!, $after: String) {
     user(username: $username) {
       id
-      tweets(first: $first, after: $after) {
+      timeline(first: $first, after: $after) {
         edges {
+          repostedAt
           node {
             ...TweetFields
           }
@@ -169,6 +170,22 @@ export const UserFollowingQuery = graphql(`
           endCursor
         }
       }
+    }
+  }
+`);
+
+export const SearchUsersQuery = graphql(`
+  query SearchUsers($query: String!) {
+    searchUsers(query: $query) {
+      ...UserListFields
+    }
+  }
+`);
+
+export const DiscoverPeopleQuery = graphql(`
+  query DiscoverPeople {
+    whoToFollow(first: 20) {
+      ...UserListFields
     }
   }
 `);

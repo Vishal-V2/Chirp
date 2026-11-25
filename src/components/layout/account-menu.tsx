@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
-import { LogOut, MoreHorizontal, User } from "lucide-react";
+import { Bookmark, LogOut, MoreHorizontal, User } from "lucide-react";
 import { signOut } from "@/app/actions/auth";
 import {
   DropdownMenu,
@@ -63,6 +63,13 @@ export function AccountMenu({
         >
           <User />
           Profile
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          render={<Link href="/bookmarks" />}
+          className="py-2 text-[15px]"
+        >
+          <Bookmark />
+          Bookmarks
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

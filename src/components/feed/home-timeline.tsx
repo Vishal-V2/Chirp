@@ -6,7 +6,10 @@ import { toast } from "sonner";
 import { useMutation } from "urql";
 import { TabPanel, nextDirection } from "@/components/motion/tab-panel";
 import { FeedTabs } from "@/components/layout/feed-tabs";
-import { TweetComposer } from "@/components/tweet/tweet-composer";
+import {
+  TweetComposer,
+  type ChirpExtras,
+} from "@/components/tweet/tweet-composer";
 import {
   CreateTweetMutation,
   ExploreFeedQuery,
@@ -67,8 +70,8 @@ export function HomeTimeline({
     router.replace("/", { scroll: false }); // tidy the URL
   }, [focusComposer, router]);
 
-  async function post(content: string) {
-    const result = await createTweet({ content });
+  async function post(content: string, extras: ChirpExtras) {
+    const result = await createTweet({ content, ...extras });
     if (result.error) {
       return (
         result.error.graphQLErrors[0]?.message ??

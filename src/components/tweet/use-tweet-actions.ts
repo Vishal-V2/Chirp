@@ -3,10 +3,13 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useMutation } from "urql";
+import { useRouter } from "next/navigation";
 import {
+  BookmarkTweetMutation,
   LikeTweetMutation,
   RetweetMutation,
   UnlikeTweetMutation,
+  UnbookmarkTweetMutation,
   UnretweetMutation,
 } from "@/graphql/client/tweets";
 import type { TweetData } from "@/lib/types";
@@ -21,15 +24,44 @@ import type { TweetData } from "@/lib/types";
 export function useTweetActions(tweet: TweetData) {
   const [likeOverride, setLikeOverride] = useState<boolean>();
   const [retweetOverride, setRetweetOverride] = useState<boolean>();
-  const busy = useRef({ like: false, retweet: false });
+  const [bookmarkOverride, setBookmarkOverride] = useState<boolean>();
+  const busy = useRef({ like: false, retweet: false, bookmark: false });
 
   const [, like] = useMutation(LikeTweetMutation);
   const [, unlike] = useMutation(UnlikeTweetMutation);
   const [, retweet] = useMutation(RetweetMutation);
   const [, unretweet] = useMutation(UnretweetMutation);
+  const [, bookmark] = useMutation(BookmarkTweetMutation);
+  const [, unbookmark] = useMutation(UnbookmarkTweetMutation);
+  const router = useRouter();
 
   const liked = likeOverride ?? tweet.viewerHasLiked;
   const retweeted = retweetOverride ?? tweet.viewerHasRetweeted;
+  const bookmarked = bookmarkOverride ?? tweet.viewerHasBookmarked ?? false;
+
+  async function toggleBookmark() {
+    if (busy.current.bookmark) return;
+    busy.current.bookmark = true;
+    const was = bookmarked;
+    const previous = bookmarkOverride;
+    setBookmarkOverride(!was);
+    const result = await (was ? unbookmark : bookmark)({ id: tweet.id });
+    busy.current.bookmark = false;
+    if (result.error) {
+      setBookmarkOverride(previous);
+      toast.error(
+        result.error.graphQLErrors[0]?.message ??
+          "Couldn't update your bookmarks.",
+      );
+      return;
+    }
+    if (was) toast("Removed from your Bookmarks");
+    else {
+      toast.success("Added to your Bookmarks", {
+        action: { label: "View", onClick: () => router.push("/bookmarks") },
+      });
+    }
+  }
 
   async function toggle(kind: "like" | "retweet") {
     if (busy.current[kind]) return; // ignore double-clicks while saving
@@ -41,7 +73,13 @@ export function useTweetActions(tweet: TweetData) {
     setOverride(!current);
 
     const mutate =
-      kind === "like" ? (current ? unlike : like) : current ? unretweet : retweet;
+      kind === "like"
+        ? current
+          ? unlike
+          : like
+        : current
+          ? unretweet
+          : retweet;
     const result = await mutate({ id: tweet.id });
     busy.current[kind] = false;
 
@@ -63,6 +101,8 @@ export function useTweetActions(tweet: TweetData) {
       tweet.retweetCount + Number(retweeted) - Number(tweet.viewerHasRetweeted),
     toggleLike: () => void toggle("like"),
     toggleRetweet: () => void toggle("retweet"),
+    bookmarked,
+    toggleBookmark: () => void toggleBookmark(),
   };
 }
 

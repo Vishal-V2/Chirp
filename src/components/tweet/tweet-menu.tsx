@@ -19,6 +19,7 @@ import {
 import { useViewer } from "@/components/viewer-provider";
 import { DeleteTweetMutation } from "@/graphql/client/tweets";
 import type { TweetData } from "@/lib/types";
+import { deleteStoredFiles } from "@/lib/upload";
 import { cn } from "@/lib/utils";
 import { tweetHref } from "./use-tweet-actions";
 
@@ -42,7 +43,9 @@ export function TweetMenu({
 
   async function copyLink() {
     try {
-      await navigator.clipboard.writeText(window.location.origin + tweetHref(tweet));
+      await navigator.clipboard.writeText(
+        window.location.origin + tweetHref(tweet),
+      );
       toast.success("Copied to clipboard");
     } catch {
       toast.error("Couldn't copy the link");
@@ -53,11 +56,14 @@ export function TweetMenu({
     // The cache's deleteTweet updater drops the tweet and refreshes the feeds.
     const result = await deleteTweet({ id: tweet.id });
     if (result.error || !result.data?.deleteTweet) {
-      toast.error(result.error?.graphQLErrors[0]?.message ?? "Couldn't delete the chirp.");
+      toast.error(
+        result.error?.graphQLErrors[0]?.message ?? "Couldn't delete the chirp.",
+      );
       return;
     }
     setConfirmOpen(false);
     toast.success("Chirp deleted");
+    void deleteStoredFiles(tweet.mediaUrls ?? []);
     onDeleted?.();
   }
 
@@ -92,11 +98,20 @@ export function TweetMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Dialog open={confirmOpen} onOpenChange={(open) => !fetching && setConfirmOpen(open)}>
-        <DialogContent showCloseButton={false} className="gap-0 p-8 sm:max-w-80 sm:rounded-2xl">
-          <DialogTitle className="font-heading text-xl font-bold tracking-tight">Delete chirp?</DialogTitle>
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(open) => !fetching && setConfirmOpen(open)}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="gap-0 p-8 sm:max-w-80 sm:rounded-2xl"
+        >
+          <DialogTitle className="font-heading text-xl font-bold tracking-tight">
+            Delete chirp?
+          </DialogTitle>
           <DialogDescription className="mt-2 text-[15px]">
-            This can&apos;t be undone. It will be removed from your profile and the timeline
+            This can&apos;t be undone. It will be removed from your profile and
+            the timeline
             {tweet.replyCount > 0 ? ", along with its replies" : ""}.
           </DialogDescription>
           <div className="mt-6 flex flex-col gap-3">

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
+import { UnreadBadge } from "@/components/messages/unread-badge";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { Feather } from "lucide-react";
@@ -20,37 +21,45 @@ export function MobileNav({ username }: { username: string }) {
         <Feather className="size-6" />
       </Link>
       <nav className="fixed inset-x-0 bottom-0 z-20 flex h-14 items-center justify-around border-t bg-background/90 backdrop-blur sm:hidden">
-        {getNavItems(username).map(({ href, label, icon: Icon }) => {
-          const active = pathname === href;
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-label={label}
-              aria-current={active ? "page" : undefined}
-              className="pressable relative flex flex-1 items-center justify-center py-3"
-            >
-              {active && (
-                <motion.span
-                  layoutId="mobile-nav-indicator"
-                  className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-primary"
-                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                />
-              )}
-              <motion.span
-                className="block"
-                initial={false}
-                animate={active ? { scale: [1, 1.3, 0.9, 1] } : { scale: 1 }}
-                transition={{ duration: 0.4, ease: "easeOut" }}
+        {getNavItems(username)
+          .filter((item) => !item.desktopOnly)
+          .map(({ href, label, icon: Icon, unreadBadge }) => {
+            const active = pathname === href;
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-label={label}
+                aria-current={active ? "page" : undefined}
+                className="pressable relative flex flex-1 items-center justify-center py-3"
               >
-                <Icon
-                  className={cn("size-6", active && "text-primary")}
-                  strokeWidth={active ? 2.6 : 2}
-                />
-              </motion.span>
-            </Link>
-          );
-        })}
+                {active && (
+                  <motion.span
+                    layoutId="mobile-nav-indicator"
+                    className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-primary"
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                  />
+                )}
+                <motion.span
+                  className="relative block"
+                  initial={false}
+                  animate={active ? { scale: [1, 1.3, 0.9, 1] } : { scale: 1 }}
+                  transition={{ duration: 0.4, ease: "easeOut" }}
+                >
+                  <Icon
+                    className={cn("size-6", active && "text-primary")}
+                    strokeWidth={active ? 2.6 : 2}
+                  />
+                  {unreadBadge && (
+                    <UnreadBadge
+                      kind={unreadBadge}
+                      className="absolute -top-1.5 -right-2.5"
+                    />
+                  )}
+                </motion.span>
+              </Link>
+            );
+          })}
       </nav>
     </>
   );

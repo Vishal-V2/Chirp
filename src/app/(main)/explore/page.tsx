@@ -1,10 +1,19 @@
-import { PageHeader } from "@/components/layout/page-header";
+import type { Metadata } from "next";
+import { ExploreView } from "@/components/explore/explore-view";
 
-export default function ExplorePage() {
+export async function generateMetadata(
+  props: PageProps<"/explore">,
+): Promise<Metadata> {
+  const { q } = await props.searchParams;
+  return {
+    title:
+      typeof q === "string" && q.trim() ? `${q.trim()} - Search` : "Explore",
+  };
+}
+
+export default async function ExplorePage(props: PageProps<"/explore">) {
+  const { q } = await props.searchParams;
   return (
-    <>
-      <PageHeader title="Explore" />
-      <p className="p-8 text-center text-muted-foreground">Coming soon.</p>
-    </>
+    <ExploreView initialQuery={typeof q === "string" ? q.slice(0, 100) : ""} />
   );
 }

@@ -12,6 +12,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import type { ProfileFieldsFragment } from "@/generated/gql/graphql";
 import { formatCount, formatJoined } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { MessageButton } from "@/components/messages/message-button";
 import { EditProfileDialog, type ProfileSave } from "./edit-profile-dialog";
 import { FollowButton } from "./follow-button";
 
@@ -77,11 +78,17 @@ export function ProfileHeader({
             {isSelf ? (
               <EditProfileDialog user={user} onSave={onSave} />
             ) : (
-              <FollowButton
-                userId={user.id}
-                displayName={user.displayName}
-                following={user.viewerIsFollowing}
-              />
+              <div className="flex items-center gap-2">
+                <MessageButton
+                  userId={user.id}
+                  displayName={user.displayName}
+                />
+                <FollowButton
+                  userId={user.id}
+                  displayName={user.displayName}
+                  following={user.viewerIsFollowing}
+                />
+              </div>
             )}
           </div>
         </div>

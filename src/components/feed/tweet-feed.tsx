@@ -9,7 +9,11 @@ import type { TweetFieldsFragment } from "@/generated/gql/graphql";
 const PAGE_SIZE = 20;
 
 type Connection = {
-  edges: { node: TweetFieldsFragment }[];
+  /** `repostedBy` marks an entry shown because that person reposted it. */
+  edges: {
+    node: TweetFieldsFragment;
+    repostedBy?: { username: string; displayName: string };
+  }[];
   pageInfo: { hasNextPage: boolean; endCursor: string | null };
 };
 
@@ -50,7 +54,9 @@ function TweetSkeleton() {
 export function EmptyState({ title, body }: { title: string; body: string }) {
   return (
     <div className="fade-up mx-auto max-w-sm px-8 py-12">
-      <p className="font-heading text-3xl font-extrabold tracking-tight">{title}</p>
+      <p className="font-heading text-3xl font-extrabold tracking-tight">
+        {title}
+      </p>
       <p className="mt-2 text-muted-foreground">{body}</p>
     </div>
   );
@@ -131,8 +137,8 @@ function FeedPage<Data, Vars extends PageVariables>({
 
   return (
     <>
-      {connection.edges.map(({ node }) => (
-        <TweetCard key={node.id} tweet={node} />
+      {connection.edges.map(({ node, repostedBy }) => (
+        <TweetCard key={node.id} tweet={node} repostedBy={repostedBy} />
       ))}
       {isLast && hasNextPage && endCursor && !fetching && (
         <LoadMoreTrigger onVisible={() => onLoadMore(endCursor)} />

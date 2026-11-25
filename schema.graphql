@@ -1,3 +1,27 @@
+type Bookmark {
+  savedAt: DateTime!
+  tweet: Tweet!
+}
+
+type Conversation {
+  id: ID!
+  lastMessage: Message
+  messages(after: String, before: String, first: Int, last: Int): ConversationMessagesConnection!
+  otherParticipant: User!
+  unreadCount: Int!
+  updatedAt: DateTime!
+}
+
+type ConversationMessagesConnection {
+  edges: [ConversationMessagesConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type ConversationMessagesConnectionEdge {
+  cursor: String!
+  node: Message!
+}
+
 """
 A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
 """
@@ -9,16 +33,49 @@ type Follow {
   following: User!
 }
 
+type Message {
+  content: String!
+  conversationId: ID!
+  createdAt: DateTime!
+  id: ID!
+  sender: User!
+  senderId: ID!
+}
+
 type Mutation {
-  createTweet(content: String!, mediaUrls: [String!], parentId: ID): Tweet!
+  bookmarkTweet(id: ID!): Tweet!
+  createTweet(content: String!, location: String, mediaUrls: [String!], parentId: ID, poll: PollInput): Tweet!
   deleteTweet(id: ID!): Boolean!
   follow(userId: ID!): User!
   likeTweet(id: ID!): Tweet!
+  markConversationRead(conversationId: ID!): Conversation!
+  markNotificationsRead: Int!
   retweet(id: ID!): Tweet!
+  sendMessage(content: String!, conversationId: ID!): Message!
+  startConversation(userId: ID!): Conversation!
+  unbookmarkTweet(id: ID!): Tweet!
   unfollow(userId: ID!): User!
   unlikeTweet(id: ID!): Tweet!
   unretweet(id: ID!): Tweet!
   updateProfile(input: UpdateProfileInput!): User!
+  votePoll(optionId: ID!): Poll!
+}
+
+type Notification {
+  actor: User!
+  createdAt: DateTime!
+  id: ID!
+  isUnread: Boolean!
+  tweet: Tweet
+  type: NotificationType!
+}
+
+enum NotificationType {
+  FOLLOW
+  LIKE
+  MENTION
+  REPLY
+  REPOST
 }
 
 type PageInfo {
@@ -28,14 +85,56 @@ type PageInfo {
   startCursor: String
 }
 
+type Poll {
+  endsAt: DateTime!
+  id: ID!
+  isClosed: Boolean!
+  options: [PollOption!]!
+  totalVotes: Int!
+  viewerIsAuthor: Boolean!
+  viewerVoteOptionId: ID
+}
+
+input PollInput {
+  durationMinutes: Int!
+  options: [String!]!
+}
+
+type PollOption {
+  id: ID!
+  text: String!
+  voteCount: Int!
+}
+
 type Query {
+  bookmarks(after: String, before: String, first: Int, last: Int): QueryBookmarksConnection!
+  conversation(id: ID!): Conversation
+  conversations: [Conversation!]!
   exploreFeed(after: String, before: String, first: Int, last: Int): QueryExploreFeedConnection!
+  hashtagTweets(after: String, before: String, first: Int, last: Int, tag: String!): QueryHashtagTweetsConnection!
   homeFeed(after: String, before: String, first: Int, last: Int): QueryHomeFeedConnection!
   likedTweets(after: String, before: String, first: Int, last: Int): QueryLikedTweetsConnection!
   me: User
+  notifications(after: String, before: String, first: Int, last: Int): QueryNotificationsConnection!
+  popularTweets(after: String, before: String, first: Int, last: Int): QueryPopularTweetsConnection!
+  searchTweets(after: String, before: String, first: Int, last: Int, query: String!): QuerySearchTweetsConnection!
+  searchUsers(query: String!): [User!]!
+  trendingHashtags(first: Int = 10): [Trend!]!
   tweet(id: ID!): Tweet
+  unreadMessageCount: Int!
+  unreadNotificationCount: Int!
   user(username: String!): User
   whoToFollow(first: Int = 3): [User!]!
+}
+
+type QueryBookmarksConnection {
+  edges: [QueryBookmarksConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryBookmarksConnectionEdge {
+  cursor: String!
+  node: Bookmark!
 }
 
 type QueryExploreFeedConnection {
@@ -44,6 +143,16 @@ type QueryExploreFeedConnection {
 }
 
 type QueryExploreFeedConnectionEdge {
+  cursor: String!
+  node: Tweet!
+}
+
+type QueryHashtagTweetsConnection {
+  edges: [QueryHashtagTweetsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryHashtagTweetsConnectionEdge {
   cursor: String!
   node: Tweet!
 }
@@ -68,6 +177,42 @@ type QueryLikedTweetsConnectionEdge {
   node: Tweet!
 }
 
+type QueryNotificationsConnection {
+  edges: [QueryNotificationsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryNotificationsConnectionEdge {
+  cursor: String!
+  node: Notification!
+}
+
+type QueryPopularTweetsConnection {
+  edges: [QueryPopularTweetsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QueryPopularTweetsConnectionEdge {
+  cursor: String!
+  node: Tweet!
+}
+
+type QuerySearchTweetsConnection {
+  edges: [QuerySearchTweetsConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type QuerySearchTweetsConnectionEdge {
+  cursor: String!
+  node: Tweet!
+}
+
+"""A #tag and how many chirps used it recently."""
+type Trend {
+  chirpCount: Int!
+  tag: String!
+}
+
 type Tweet {
   ancestors: [Tweet!]!
   author: User!
@@ -75,11 +220,14 @@ type Tweet {
   createdAt: DateTime!
   id: ID!
   likeCount: Int!
+  location: String
   mediaUrls: [String!]!
   parent: Tweet
+  poll: Poll
   replies(after: String, before: String, first: Int, last: Int): TweetRepliesConnection!
   replyCount: Int!
   retweetCount: Int!
+  viewerHasBookmarked: Boolean!
   viewerHasLiked: Boolean!
   viewerHasRetweeted: Boolean!
 }
@@ -114,6 +262,7 @@ type User {
   followsViewer: Boolean!
   id: ID!
   replies(after: String, before: String, first: Int, last: Int): UserRepliesConnection!
+  timeline(after: String, before: String, first: Int, last: Int): UserTimelineConnection!
   tweetCount: Int!
   tweets(after: String, before: String, first: Int, last: Int): UserTweetsConnection!
   username: String!
@@ -148,6 +297,19 @@ type UserRepliesConnection {
 type UserRepliesConnectionEdge {
   cursor: String!
   node: Tweet!
+}
+
+type UserTimelineConnection {
+  edges: [UserTimelineEdge!]!
+  pageInfo: PageInfo!
+}
+
+type UserTimelineEdge {
+  cursor: String!
+  node: Tweet!
+
+  """Set when this entry is a repost: when it was reposted."""
+  repostedAt: DateTime
 }
 
 type UserTweetsConnection {

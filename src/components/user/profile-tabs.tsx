@@ -15,9 +15,11 @@ type Tab = "Chirps" | "Replies" | "Likes";
 /** Posts / Replies / Likes (Likes are private, so only on your own profile). */
 export function ProfileTabs({
   username,
+  displayName,
   isSelf,
 }: {
   username: string;
+  displayName: string;
   isSelf: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("Chirps");
@@ -44,7 +46,16 @@ export function ProfileTabs({
             source={feedSource({
               query: UserPostsQuery,
               variables: { username },
-              select: (d) => d.user?.tweets,
+              select: (d) =>
+                d.user && {
+                  ...d.user.timeline,
+                  edges: d.user.timeline.edges.map((e) => ({
+                    node: e.node,
+                    repostedBy: e.repostedAt
+                      ? { username, displayName }
+                      : undefined,
+                  })),
+                },
               empty: isSelf
                 ? {
                     title: "No chirps yet",

@@ -88,7 +88,11 @@ export function ProfileView({
       {user ? (
         <>
           <ProfileHeader user={user} isSelf={isSelf} onSave={save} />
-          <ProfileTabs username={user.username} isSelf={isSelf} />
+          <ProfileTabs
+            username={user.username}
+            displayName={user.displayName}
+            isSelf={isSelf}
+          />
         </>
       ) : error ? (
         <div className="px-4 py-8 text-center">

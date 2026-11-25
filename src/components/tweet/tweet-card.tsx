@@ -5,19 +5,25 @@ import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ChartNoAxesColumn,
+  Bookmark,
   Heart,
   MessageCircle,
   Repeat2,
   Share,
   type LucideIcon,
+  MapPin,
 } from "lucide-react";
 import { AnimatedCount } from "@/components/motion/animated-count";
 import { UserAvatar } from "@/components/user-avatar";
+import { useViewer } from "@/components/viewer-provider";
 import { formatRelativeTime } from "@/lib/format";
 import type { TweetData } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { RichText } from "./rich-text";
+import { TweetMedia } from "./tweet-media";
+import { TweetPoll } from "./tweet-poll";
 import { TweetMenu } from "./tweet-menu";
+import { shareLink } from "@/lib/share";
 import { tweetHref, useTweetActions } from "./use-tweet-actions";
 
 const PARTICLES = 10;
@@ -79,7 +85,7 @@ export function ActionButton({
   /** Bigger icon, no count: used on the single-tweet page. */
   large?: boolean;
   /** Celebration when switched on: a heart pop with a burst, or a repost spin. */
-  effect?: "pop" | "spin";
+  effect?: "pop" | "spin" | "bounce";
   onClick?: () => void;
 }) {
   // Bumped each time the action is switched on, to replay the celebration.
@@ -123,7 +129,9 @@ export function ActionButton({
               ? { scale: [0.2, 1.3, 0.92, 1.05, 1] }
               : celebrate && effect === "spin"
                 ? { rotate: [0, 360], scale: [1, 1.25, 1] }
-                : { scale: 1, rotate: 0 }
+                : celebrate && effect === "bounce"
+                  ? { y: [0, -5, 0, -2, 0], scale: [1, 1.15, 1] }
+                  : { scale: 1, rotate: 0 }
           }
           transition={{
             duration: effect === "spin" ? 0.55 : 0.5,
@@ -133,7 +141,10 @@ export function ActionButton({
           <Icon
             className={cn(
               large ? "size-[22px]" : "size-[18px]",
-              active && tone === "pink" && "fill-current",
+              // Filled icon when on (heart, bookmark).
+              active &&
+                (tone === "pink" || effect === "bounce") &&
+                "fill-current",
             )}
           />
         </motion.span>
@@ -150,12 +161,35 @@ export function ActionButton({
   );
 }
 
+/** "↻ Sam Rivera reposted" above a reposted chirp ("You reposted" for yourself). */
+function RepostedLabel({
+  by,
+}: {
+  by: { username: string; displayName: string };
+}) {
+  const viewer = useViewer();
+  const isViewer = viewer?.username === by.username;
+  return (
+    <p className="-mt-1 mb-1 flex basis-full items-center gap-3 text-[13px] font-semibold text-muted-foreground">
+      <span className="flex w-10 justify-end">
+        <Repeat2 className="size-4" aria-hidden />
+      </span>
+      <Link href={`/${by.username}`} className="hover:underline">
+        {isViewer ? "You reposted" : `${by.displayName} reposted`}
+      </Link>
+    </p>
+  );
+}
+
 export function TweetCard({
   tweet,
   threadLine = false,
   showReplyingTo = true,
+  repostedBy,
 }: {
   tweet: TweetData;
+  /** Shown because this person reposted it (profile "Chirps" tab). */
+  repostedBy?: { username: string; displayName: string };
   /** Draw a line under the avatar connecting to the next tweet in a thread. */
   threadLine?: boolean;
   showReplyingTo?: boolean;
@@ -168,6 +202,8 @@ export function TweetCard({
     retweetCount,
     toggleLike,
     toggleRetweet,
+    bookmarked,
+    toggleBookmark,
   } = useTweetActions(tweet);
   const { author } = tweet;
   const href = tweetHref(tweet);
@@ -198,10 +234,11 @@ export function TweetCard({
             router.push(href);
           }}
           className={cn(
-            "flex cursor-pointer gap-3 overflow-hidden px-4 pt-3 transition-colors hover:bg-muted/40",
+            "flex cursor-pointer flex-wrap gap-x-3 overflow-hidden px-4 pt-3 transition-colors hover:bg-muted/40",
             threadLine ? "pb-0" : "border-b pb-3",
           )}
         >
+          {repostedBy && <RepostedLabel by={repostedBy} />}
           <div className="flex shrink-0 flex-col items-center">
             <Link href={`/${author.username}`}>
               <UserAvatar
@@ -256,9 +293,26 @@ export function TweetCard({
               </p>
             )}
 
-            <p className="text-[15px] leading-normal break-words whitespace-pre-wrap">
-              {tweet.content}
-            </p>
+            {tweet.content && (
+              <p className="text-[15px] leading-normal break-words whitespace-pre-wrap">
+                <RichText text={tweet.content} />
+              </p>
+            )}
+
+            <TweetMedia
+              urls={tweet.mediaUrls ?? []}
+              author={author.displayName}
+            />
+
+            {tweet.poll && <TweetPoll poll={tweet.poll} />}
+
+            {tweet.location && (
+              <p className="mt-2 flex items-center gap-1 text-[13px] text-muted-foreground">
+                <MapPin className="size-3.5 shrink-0" aria-hidden />
+
+                <span className="truncate">{tweet.location}</span>
+              </p>
+            )}
 
             <div className="mt-3 flex max-w-md justify-between">
               <ActionButton
@@ -287,11 +341,21 @@ export function TweetCard({
                 onClick={toggleLike}
               />
               <ActionButton
-                icon={ChartNoAxesColumn}
-                label="Views"
+                icon={Bookmark}
+                label={bookmarked ? "Remove bookmark" : "Bookmark"}
                 tone="primary"
+                effect="bounce"
+                active={bookmarked}
+                onClick={toggleBookmark}
               />
-              <ActionButton icon={Share} label="Share" tone="primary" />
+              <ActionButton
+                icon={Share}
+                label="Share"
+                tone="primary"
+                onClick={() =>
+                  void shareLink(href, `${author.displayName} on Chirp`)
+                }
+              />
             </div>
           </div>
         </motion.article>

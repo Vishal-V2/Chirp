@@ -1,10 +1,8 @@
-import { PageHeader } from "@/components/layout/page-header";
+import type { Metadata } from "next";
+import { NotificationsView } from "@/components/notifications/notifications-view";
+
+export const metadata: Metadata = { title: "Notifications" };
 
 export default function NotificationsPage() {
-  return (
-    <>
-      <PageHeader title="Notifications" />
-      <p className="p-8 text-center text-muted-foreground">Coming soon.</p>
-    </>
-  );
+  return <NotificationsView />;
 }

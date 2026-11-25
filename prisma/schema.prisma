@@ -21,6 +21,8 @@ model User {
   bio         String?  @db.VarChar(160)
   avatarUrl   String?
   bannerUrl   String?
+  /// Notifications newer than this are unread.
+  notificationsReadAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -29,12 +31,25 @@ model User {
   retweets  Retweet[]
   followers Follow[] @relation("following")
   following Follow[] @relation("follower")
+
+  conversations ConversationParticipant[]
+  messages      Message[]
+  pollVotes     PollVote[]
+
+  bookmarks             Bookmark[]
+  notificationsReceived Notification[] @relation("notificationsReceived")
+  notificationsSent     Notification[] @relation("notificationsSent")
 }
 
 model Tweet {
   id        String   @id @default(cuid())
   content   String   @db.VarChar(280)
+  /// Uploaded images and GIFs (our storage), up to 4.
   mediaUrls String[]
+  /// A place name like "Pune, India". Coordinates are never stored.
+  location  String?  @db.VarChar(60)
+  /// Lower-cased #tags in the text (without "#"), for hashtag pages and trends.
+  hashtags  String[] @default([])
   createdAt DateTime @default(now())
 
   authorId String @db.Uuid
@@ -46,8 +61,13 @@ model Tweet {
 
   likes    Like[]
   retweets Retweet[]
+  poll     Poll?
+
+  notifications Notification[]
+  bookmarks     Bookmark[]
 
   @@index([authorId, createdAt(sort: Desc)])
+  @@index([hashtags], type: Gin)
   @@index([parentId, createdAt])
   @@index([createdAt(sort: Desc)])
 }
@@ -86,4 +106,124 @@ model Follow {
 
   @@id([followerId, followingId])
   @@index([followingId])
+}
+
+/// A one-to-one direct message thread.
+model Conversation {
+  id        String   @id @default(cuid())
+  /// "<smaller user id>:<larger user id>", so each pair has at most one conversation.
+  pairKey   String   @unique
+  createdAt DateTime @default(now())
+  /// Bumped on every message; sorts the conversation list.
+  updatedAt DateTime @default(now())
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([updatedAt(sort: Desc)])
+}
+
+model ConversationParticipant {
+  conversationId String
+  userId         String    @db.Uuid
+  /// Messages after this are unread for this participant.
+  lastReadAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  content        String   @db.VarChar(1000)
+  createdAt      DateTime @default(now())
+  conversationId String
+  senderId       String   @db.Uuid
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt(sort: Desc)])
+}
+
+/// A poll attached to a chirp (2-4 options, closes at endsAt).
+model Poll {
+  id      String   @id @default(cuid())
+  tweetId String   @unique
+  endsAt  DateTime
+
+  tweet   Tweet        @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  options PollOption[]
+  votes   PollVote[]
+}
+
+model PollOption {
+  id       String @id @default(cuid())
+  pollId   String
+  text     String @db.VarChar(25)
+  position Int
+
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+
+  @@index([pollId])
+}
+
+/// One vote per person per poll.
+model PollVote {
+  pollId    String
+  optionId  String
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([pollId, userId])
+  @@index([optionId])
+}
+
+enum NotificationType {
+  LIKE
+  REPOST
+  REPLY
+  FOLLOW
+  MENTION
+}
+
+/// "actor did something to recipient's chirp / to recipient".
+model Notification {
+  id          String           @id @default(cuid())
+  type        NotificationType
+  recipientId String           @db.Uuid
+  actorId     String           @db.Uuid
+  /// The chirp liked/reposted, the reply, or the chirp you were mentioned in. Null for follows.
+  tweetId     String?
+  /// Stops duplicates for likes/reposts/follows ("LIKE:<actor>:<chirp>"); null for replies.
+  dedupeKey   String?          @unique
+  createdAt   DateTime         @default(now())
+
+  recipient User   @relation("notificationsReceived", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor     User   @relation("notificationsSent", fields: [actorId], references: [id], onDelete: Cascade)
+  tweet     Tweet? @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, createdAt(sort: Desc)])
+}
+
+/// A chirp you saved for later. Private to you.
+model Bookmark {
+  userId    String   @db.Uuid
+  tweetId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tweet Tweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tweetId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([tweetId])
 }

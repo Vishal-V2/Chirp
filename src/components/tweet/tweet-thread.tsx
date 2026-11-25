@@ -7,7 +7,7 @@ import { useMutation, useQuery } from "urql";
 import { useViewer } from "@/components/viewer-provider";
 import { CreateTweetMutation, TweetPageQuery } from "@/graphql/client/tweets";
 import { TweetCard } from "./tweet-card";
-import { TweetComposer } from "./tweet-composer";
+import { TweetComposer, type ChirpExtras } from "./tweet-composer";
 import { TweetDetail } from "./tweet-detail";
 
 const REPLY_INPUT_ID = "reply-composer";
@@ -15,7 +15,11 @@ const REPLIES_PAGE = 50;
 
 function ThreadSkeleton() {
   return (
-    <div className="space-y-3 px-4 py-4" role="status" aria-label="Loading chirp">
+    <div
+      className="space-y-3 px-4 py-4"
+      role="status"
+      aria-label="Loading chirp"
+    >
       <div className="flex items-center gap-3">
         <div className="size-10 rounded-full skeleton" />
         <div className="h-4 w-40 rounded skeleton" />
@@ -58,7 +62,9 @@ export function TweetThread({ tweetId }: { tweetId: string }) {
     if (error) {
       return (
         <div className="px-4 py-8 text-center">
-          <p className="text-muted-foreground">Couldn&apos;t load this chirp.</p>
+          <p className="text-muted-foreground">
+            Couldn&apos;t load this chirp.
+          </p>
           <button
             type="button"
             onClick={() => reexecute({ requestPolicy: "network-only" })}
@@ -72,19 +78,26 @@ export function TweetThread({ tweetId }: { tweetId: string }) {
     // Deleted while you were looking at it.
     return (
       <div className="fade-up mx-auto max-w-sm px-8 py-12">
-        <p className="font-heading text-3xl font-extrabold tracking-tight">This chirp doesn&apos;t exist</p>
+        <p className="font-heading text-3xl font-extrabold tracking-tight">
+          This chirp doesn&apos;t exist
+        </p>
         <p className="mt-2 text-muted-foreground">It may have been deleted.</p>
-        <Link href="/" className="mt-4 inline-block font-medium text-primary hover:underline">
+        <Link
+          href="/"
+          className="mt-4 inline-block font-medium text-primary hover:underline"
+        >
           Back to home
         </Link>
       </div>
     );
   }
 
-  async function reply(content: string) {
-    const result = await createTweet({ content, parentId: tweetId });
+  async function reply(content: string, extras: ChirpExtras) {
+    const result = await createTweet({ content, ...extras, parentId: tweetId });
     if (result.error) {
-      return result.error.graphQLErrors[0]?.message ?? "Couldn't send your reply.";
+      return (
+        result.error.graphQLErrors[0]?.message ?? "Couldn't send your reply."
+      );
     }
   }
 

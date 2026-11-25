@@ -1,13 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { Bookmark, Heart, MessageCircle, Repeat2, Share } from "lucide-react";
+import {
+  Bookmark,
+  Heart,
+  MessageCircle,
+  Repeat2,
+  Share,
+  MapPin,
+} from "lucide-react";
 import { UserAvatar } from "@/components/user-avatar";
 import { formatCount } from "@/lib/format";
 import type { TweetData } from "@/lib/types";
 import { ActionButton } from "./tweet-card";
+import { RichText } from "./rich-text";
+import { TweetMedia } from "./tweet-media";
+import { TweetPoll } from "./tweet-poll";
 import { TweetMenu } from "./tweet-menu";
-import { useTweetActions } from "./use-tweet-actions";
+import { shareLink } from "@/lib/share";
+import { tweetHref, useTweetActions } from "./use-tweet-actions";
 
 function formatFullDate(iso: string) {
   const d = new Date(iso);
@@ -58,6 +69,8 @@ export function TweetDetail({
     retweetCount,
     toggleLike,
     toggleRetweet,
+    bookmarked,
+    toggleBookmark,
   } = useTweetActions(tweet);
   const { author } = tweet;
   const { replyCount } = tweet;
@@ -97,9 +110,23 @@ export function TweetDetail({
         </p>
       )}
 
-      <p className="mt-3 text-[17px] leading-normal break-words whitespace-pre-wrap">
-        {tweet.content}
-      </p>
+      {tweet.content && (
+        <p className="mt-3 text-[17px] leading-normal break-words whitespace-pre-wrap">
+          <RichText text={tweet.content} />
+        </p>
+      )}
+
+      <TweetMedia urls={tweet.mediaUrls ?? []} author={author.displayName} />
+
+      {tweet.poll && <TweetPoll poll={tweet.poll} />}
+
+      {tweet.location && (
+        <p className="mt-2 flex items-center gap-1 text-[13px] text-muted-foreground">
+          <MapPin className="size-3.5 shrink-0" aria-hidden />
+
+          <span className="truncate">{tweet.location}</span>
+        </p>
+      )}
 
       <time
         dateTime={tweet.createdAt}
@@ -143,8 +170,24 @@ export function TweetDetail({
           active={liked}
           onClick={toggleLike}
         />
-        <ActionButton icon={Bookmark} label="Bookmark" tone="primary" large />
-        <ActionButton icon={Share} label="Share" tone="primary" large />
+        <ActionButton
+          icon={Bookmark}
+          label={bookmarked ? "Remove bookmark" : "Bookmark"}
+          tone="primary"
+          effect="bounce"
+          large
+          active={bookmarked}
+          onClick={toggleBookmark}
+        />
+        <ActionButton
+          icon={Share}
+          label="Share"
+          tone="primary"
+          large
+          onClick={() =>
+            void shareLink(tweetHref(tweet), `${author.displayName} on Chirp`)
+          }
+        />
       </div>
     </article>
   );

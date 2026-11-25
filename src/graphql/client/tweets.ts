@@ -5,12 +5,15 @@ export const TweetFieldsFragment = graphql(`
   fragment TweetFields on Tweet {
     id
     content
+    mediaUrls
+    location
     createdAt
     likeCount
     retweetCount
     replyCount
     viewerHasLiked
     viewerHasRetweeted
+    viewerHasBookmarked
     author {
       id
       username
@@ -23,6 +26,33 @@ export const TweetFieldsFragment = graphql(`
         id
         username
       }
+    }
+    poll {
+      ...PollFields
+    }
+  }
+`);
+
+export const PollFieldsFragment = graphql(`
+  fragment PollFields on Poll {
+    id
+    endsAt
+    isClosed
+    totalVotes
+    viewerVoteOptionId
+    viewerIsAuthor
+    options {
+      id
+      text
+      voteCount
+    }
+  }
+`);
+
+export const VotePollMutation = graphql(`
+  mutation VotePoll($optionId: ID!) {
+    votePoll(optionId: $optionId) {
+      ...PollFields
     }
   }
 `);
@@ -60,8 +90,20 @@ export const HomeFeedQuery = graphql(`
 `);
 
 export const CreateTweetMutation = graphql(`
-  mutation CreateTweet($content: String!, $parentId: ID) {
-    createTweet(content: $content, parentId: $parentId) {
+  mutation CreateTweet(
+    $content: String!
+    $mediaUrls: [String!]
+    $location: String
+    $poll: PollInput
+    $parentId: ID
+  ) {
+    createTweet(
+      content: $content
+      mediaUrls: $mediaUrls
+      location: $location
+      poll: $poll
+      parentId: $parentId
+    ) {
       ...TweetFields
     }
   }
@@ -131,6 +173,99 @@ export const TweetPageQuery = graphql(`
           hasNextPage
         }
       }
+    }
+  }
+`);
+
+export const PopularTweetsQuery = graphql(`
+  query PopularTweets($first: Int!, $after: String) {
+    popularTweets(first: $first, after: $after) {
+      edges {
+        node {
+          ...TweetFields
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`);
+
+export const SearchTweetsQuery = graphql(`
+  query SearchTweets($query: String!, $first: Int!, $after: String) {
+    searchTweets(query: $query, first: $first, after: $after) {
+      edges {
+        node {
+          ...TweetFields
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`);
+
+export const BookmarkTweetMutation = graphql(`
+  mutation BookmarkTweet($id: ID!) {
+    bookmarkTweet(id: $id) {
+      id
+      viewerHasBookmarked
+    }
+  }
+`);
+
+export const UnbookmarkTweetMutation = graphql(`
+  mutation UnbookmarkTweet($id: ID!) {
+    unbookmarkTweet(id: $id) {
+      id
+      viewerHasBookmarked
+    }
+  }
+`);
+
+export const BookmarksQuery = graphql(`
+  query Bookmarks($first: Int!, $after: String) {
+    bookmarks(first: $first, after: $after) {
+      edges {
+        node {
+          tweet {
+            ...TweetFields
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`);
+
+export const HashtagTweetsQuery = graphql(`
+  query HashtagTweets($tag: String!, $first: Int!, $after: String) {
+    hashtagTweets(tag: $tag, first: $first, after: $after) {
+      edges {
+        node {
+          ...TweetFields
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`);
+
+export const TrendingHashtagsQuery = graphql(`
+  query TrendingHashtags($first: Int!) {
+    trendingHashtags(first: $first) {
+      tag
+      chirpCount
     }
   }
 `);

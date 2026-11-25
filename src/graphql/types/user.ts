@@ -1,11 +1,17 @@
 import { z } from "zod";
 import type { Builder } from "../builder";
 import { badInput, notFound, requireUser } from "../auth";
+import { notify, unnotify } from "../notify";
+import { loadTimeline } from "../timeline";
+import { addTweetTypes, escapeLike } from "./tweet";
 import { prisma } from "@/lib/prisma";
 import { PROFILE_IMAGES_BUCKET } from "@/lib/storage";
 import { bioSchema, displayNameSchema } from "@/lib/validation";
 
-export function addUserTypes(builder: Builder) {
+export function addUserTypes(
+  builder: Builder,
+  refs: { Tweet: ReturnType<typeof addTweetTypes> },
+) {
   builder.prismaObject("User", {
     fields: (t) => ({
       id: t.exposeID("id"),
@@ -59,6 +65,30 @@ export function addUserTypes(builder: Builder) {
           user.id !== ctx.userId &&
           user.following.length > 0,
       }),
+      /**
+       * The profile "Chirps" tab: own chirps plus reposts, newest activity first.
+       * Repost edges carry `repostedAt`.
+       */
+      timeline: t.connection(
+        {
+          type: refs.Tweet,
+          resolve: (user, args) => loadTimeline(user.id, args),
+        },
+        { name: "UserTimelineConnection" },
+        {
+          name: "UserTimelineEdge",
+          fields: (te) => ({
+            repostedAt: te.field({
+              type: "DateTime",
+              nullable: true,
+              description:
+                "Set when this entry is a repost: when it was reposted.",
+              resolve: (edge) =>
+                (edge as { repostedAt?: Date | null }).repostedAt ?? null,
+            }),
+          }),
+        },
+      ),
       /** People who follow this user, most recent first. */
       followers: t.relatedConnection("followers", {
         cursor: "followerId_followingId",
@@ -112,7 +142,28 @@ export function addUserTypes(builder: Builder) {
             followers: { none: { followerId: ctx.userId } },
           },
           orderBy: [{ followers: { _count: "desc" } }, { createdAt: "asc" }],
-          take: Math.min(Math.max(args.first ?? 3, 1), 10),
+          take: Math.min(Math.max(args.first ?? 3, 1), 20),
+        });
+      },
+    }),
+    /** People whose name or @username contains the search text, most-followed first. */
+    searchUsers: t.prismaField({
+      type: ["User"],
+      args: { query: t.arg.string({ required: true }) },
+      resolve: (query, _root, args) => {
+        const raw = args.query.trim().replace(/^@/, "").slice(0, 50);
+        if (!raw) throw badInput("Type something to search for.");
+        const text = escapeLike(raw);
+        return prisma.user.findMany({
+          ...query,
+          where: {
+            OR: [
+              { username: { contains: text, mode: "insensitive" } },
+              { displayName: { contains: text, mode: "insensitive" } },
+            ],
+          },
+          orderBy: [{ followers: { _count: "desc" } }, { username: "asc" }],
+          take: 20,
         });
       },
     }),
@@ -213,6 +264,7 @@ export function addUserTypes(builder: Builder) {
           create: { followerId: me, followingId: target },
           update: {},
         });
+        await notify({ type: "FOLLOW", actorId: me, recipientId: target });
         return prisma.user.findUniqueOrThrow({
           ...query,
           where: { id: target },
@@ -228,6 +280,7 @@ export function addUserTypes(builder: Builder) {
         await prisma.follow.deleteMany({
           where: { followerId: me, followingId: target },
         });
+        await unnotify({ type: "FOLLOW", actorId: me, recipientId: target });
         return prisma.user.findUniqueOrThrow({
           ...query,
           where: { id: target },

@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { usePathname } from "next/navigation";
 import { Bird, Feather } from "lucide-react";
 import { Wordmark } from "@/components/brand/wordmark";
+import { UnreadBadge } from "@/components/messages/unread-badge";
 import { AccountMenu } from "./account-menu";
 import { getNavItems } from "./nav-items";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -27,48 +28,60 @@ export function SidebarNav({ viewer }: { viewer: ViewerProfile }) {
         </Link>
 
         <nav className="flex flex-col items-center gap-1 xl:items-stretch">
-          {getNavItems(viewer.username).map(({ href, label, icon: Icon }) => {
-            const active = pathname === href;
-            return (
-              <Link
-                key={href}
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "group/nav relative flex w-fit items-center gap-4 rounded-full p-3 text-xl transition-colors hover:bg-muted/70 xl:pr-6",
-                  active && "font-bold",
-                )}
-              >
-                {/* Highlight that slides to whichever page is active. */}
-                {active && (
-                  <motion.span
-                    layoutId="sidebar-active-pill"
-                    className="absolute inset-0 -z-10 rounded-full bg-primary/10"
-                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                  />
-                )}
-                <motion.span
-                  className="block"
-                  initial={false}
-                  animate={
-                    active
-                      ? { scale: [1, 1.3, 0.9, 1], rotate: [0, -8, 6, 0] }
-                      : { scale: 1 }
-                  }
-                  transition={{ duration: 0.45, ease: "easeOut" }}
+          {getNavItems(viewer.username).map(
+            ({ href, label, icon: Icon, unreadBadge }) => {
+              const active = pathname === href;
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "group/nav relative flex w-fit items-center gap-4 rounded-full p-3 text-xl transition-colors hover:bg-muted/70 xl:pr-6",
+                    active && "font-bold",
+                  )}
                 >
-                  <Icon
-                    className={cn(
-                      "size-6 transition-transform duration-200 group-hover/nav:scale-110 group-active/nav:scale-90",
-                      active && "text-primary",
+                  {/* Highlight that slides to whichever page is active. */}
+                  {active && (
+                    <motion.span
+                      layoutId="sidebar-active-pill"
+                      className="absolute inset-0 -z-10 rounded-full bg-primary/10"
+                      transition={{
+                        type: "spring",
+                        stiffness: 420,
+                        damping: 34,
+                      }}
+                    />
+                  )}
+                  <motion.span
+                    className="relative block"
+                    initial={false}
+                    animate={
+                      active
+                        ? { scale: [1, 1.3, 0.9, 1], rotate: [0, -8, 6, 0] }
+                        : { scale: 1 }
+                    }
+                    transition={{ duration: 0.45, ease: "easeOut" }}
+                  >
+                    <Icon
+                      className={cn(
+                        "size-6 transition-transform duration-200 group-hover/nav:scale-110 group-active/nav:scale-90",
+                        active && "text-primary",
+                      )}
+                      strokeWidth={active ? 2.6 : 2}
+                    />
+                    {unreadBadge && (
+                      <UnreadBadge
+                        kind={unreadBadge}
+                        className="absolute -top-1.5 -right-2"
+                      />
                     )}
-                    strokeWidth={active ? 2.6 : 2}
-                  />
-                </motion.span>
-                <span className="hidden xl:inline">{label}</span>
-              </Link>
-            );
-          })}
+                  </motion.span>
+                  <span className="hidden xl:inline">{label}</span>
+                </Link>
+              );
+            },
+          )}
           <ThemeToggle variant="sidebar" />
         </nav>
 

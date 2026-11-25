@@ -9,9 +9,15 @@ import { graphql } from "@/generated/gql";
 // Connection wrappers have no id; they're stored inside their parent field.
 const embedded = () => null;
 const CONNECTION_TYPES = [
+  "ConversationMessagesConnection",
   "QueryExploreFeedConnection",
+  "QueryHashtagTweetsConnection",
   "QueryHomeFeedConnection",
+  "QueryBookmarksConnection",
   "QueryLikedTweetsConnection",
+  "QueryNotificationsConnection",
+  "QueryPopularTweetsConnection",
+  "QuerySearchTweetsConnection",
   "TweetRepliesConnection",
   "UserFollowersConnection",
   "UserFollowingConnection",
@@ -56,14 +62,36 @@ function invalidateFields(
   }
 }
 
+/** Refresh every cached profile's Chirps tab. */
+function invalidateProfileTimelines(cache: Cache) {
+  for (const field of cache.inspectFields("Query")) {
+    if (field.fieldName !== "user") continue;
+    const key = cache.resolve("Query", field.fieldName, field.arguments);
+    if (typeof key === "string") invalidateFields(cache, key, ["timeline"]);
+  }
+}
+
 /** Drop cached feed pages so they refetch (after posting or deleting). */
 function invalidateFeeds(cache: Cache) {
-  invalidateFields(cache, "Query", ["exploreFeed", "homeFeed"]);
+  invalidateFields(cache, "Query", [
+    "exploreFeed",
+    "hashtagTweets",
+    "trendingHashtags",
+    "homeFeed",
+    "popularTweets",
+    "searchTweets",
+  ]);
 }
 
 export const graphcache = cacheExchange({
   keys: {
     PageInfo: embedded,
+    Trend: embedded,
+    // The profile timeline's connection/edge use custom names.
+    UserTimelineConnection: embedded,
+    UserTimelineEdge: embedded,
+    // A bookmark has no id of its own; it lives inside your Bookmarks list.
+    Bookmark: embedded,
     // A follow link has no id of its own; it lives inside its list.
     Follow: embedded,
     ...Object.fromEntries(
@@ -84,6 +112,7 @@ export const graphcache = cacheExchange({
         if (authorId) {
           invalidateFields(cache, { __typename: "User", id: authorId }, [
             "tweets",
+            "timeline",
             "replies",
             "tweetCount",
           ]);
@@ -101,6 +130,42 @@ export const graphcache = cacheExchange({
             }
           }
         }
+      },
+      // A repost changes your profile's Chirps tab. The updater can't tell who
+      // "you" are, so refresh the timelines of every profile in the cache.
+      retweet(_result, _args, cache) {
+        invalidateProfileTimelines(cache);
+      },
+      unretweet(_result, _args, cache) {
+        invalidateProfileTimelines(cache);
+      },
+      // Messages: refresh the inbox list, the unread badge and the thread.
+      sendMessage(_result, args, cache) {
+        invalidateFields(cache, "Query", [
+          "conversations",
+          "unreadMessageCount",
+        ]);
+        invalidateFields(
+          cache,
+          { __typename: "Conversation", id: String(args.conversationId) },
+          ["messages"],
+        );
+      },
+      // Your Bookmarks page changes when you save or unsave.
+      bookmarkTweet(_result, _args, cache) {
+        invalidateFields(cache, "Query", ["bookmarks"]);
+      },
+      unbookmarkTweet(_result, _args, cache) {
+        invalidateFields(cache, "Query", ["bookmarks"]);
+      },
+      markNotificationsRead(_result, _args, cache) {
+        invalidateFields(cache, "Query", ["unreadNotificationCount"]);
+      },
+      markConversationRead(_result, _args, cache) {
+        invalidateFields(cache, "Query", [
+          "conversations",
+          "unreadMessageCount",
+        ]);
       },
       // Your Likes tab changes when you like or unlike.
       likeTweet(_result, _args, cache) {
@@ -137,6 +202,16 @@ export const graphcache = cacheExchange({
   // Show likes/reposts instantly; the server's answer replaces these, and
   // they're rolled back automatically if the request fails.
   optimistic: {
+    bookmarkTweet: (args) => ({
+      __typename: "Tweet",
+      id: String(args.id),
+      viewerHasBookmarked: true,
+    }),
+    unbookmarkTweet: (args) => ({
+      __typename: "Tweet",
+      id: String(args.id),
+      viewerHasBookmarked: false,
+    }),
     follow(args, cache) {
       const u = cache.readFragment(FollowState, {
         __typename: "User",
