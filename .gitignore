@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated
+!.env.example
+
+
+# AI assistant files (added by tool setups)
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
