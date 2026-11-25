@@ -50,14 +50,20 @@ function YouTube({ videoId, start }: { videoId: string; start?: number }) {
 }
 
 /** A YouTube video or X post from a link in a chirp, shown inline. */
-export function LinkEmbed({ embed }: { embed: Embed }) {
+export function LinkEmbed({
+  embed,
+  compact = false,
+}: {
+  embed: Embed;
+  compact?: boolean;
+}) {
   return (
     // Clicking inside the embed shouldn't open the chirp underneath.
     <div onClick={(e) => e.stopPropagation()} className="link-embed">
       {embed.kind === "youtube" ? (
         <YouTube videoId={embed.videoId} start={embed.start} />
       ) : (
-        <XPostEmbed tweetId={embed.tweetId} />
+        <XPostEmbed tweetId={embed.tweetId} compact={compact} />
       )}
     </div>
   );

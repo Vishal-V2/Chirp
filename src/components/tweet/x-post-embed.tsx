@@ -49,7 +49,14 @@ function XGif({ media }: { media: GifMedia }) {
 }
 
 /** An X post, fetched through our /api/tweet route; GIFs loop like GIFs. */
-export function XPostEmbed({ tweetId }: { tweetId: string }) {
+export function XPostEmbed({
+  tweetId,
+  compact = false,
+}: {
+  tweetId: string;
+  /** Inside a quote box: just the media and a small "@user on X" caption. */
+  compact?: boolean;
+}) {
   const { data, error, isLoading } = useTweet(
     undefined,
     `/api/tweet/${tweetId}`,
@@ -61,6 +68,35 @@ export function XPostEmbed({ tweetId }: { tweetId: string }) {
 
   const media = tweet.mediaDetails ?? [];
   const gifs = media.filter((m): m is GifMedia => m.type === "animated_gif");
+
+  if (compact && media.length) {
+    const photo = media.find((m) => m.type === "photo");
+    return (
+      <div className="react-tweet-theme mt-3" style={{ margin: 0 }}>
+        {gifs.length ? (
+          <XGif media={gifs[0]} />
+        ) : photo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={getMediaUrl(photo, "medium")}
+            alt=""
+            loading="lazy"
+            className="mt-3 max-h-80 w-full rounded-xl border border-[var(--tweet-border)] object-cover"
+          />
+        ) : (
+          <TweetMedia tweet={tweet} />
+        )}
+        <a
+          href={tweet.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1.5 inline-block text-[13px] text-muted-foreground hover:underline"
+        >
+          @{tweet.user.screen_name} on X
+        </a>
+      </div>
+    );
+  }
 
   return (
     <TweetContainer>

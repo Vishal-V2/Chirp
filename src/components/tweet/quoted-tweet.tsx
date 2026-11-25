@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { UserAvatar } from "@/components/user-avatar";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { findEmbed } from "@/lib/embeds";
+import { LinkEmbed } from "./link-embed";
 import { tweetHref } from "./use-tweet-actions";
 
 /** What the embed needs; fits both a quoted chirp from the API and a full chirp. */
@@ -51,6 +53,12 @@ export function QuotedTweet({
 
   const { author } = quoted;
   const image = quoted.mediaUrls?.[0];
+  // Same as a normal chirp: a YouTube / X link becomes an embed (unless it has images).
+  const embed = image ? null : findEmbed(quoted.content);
+  const text =
+    embed && quoted.content.trimEnd().endsWith(embed.url)
+      ? quoted.content.trimEnd().slice(0, -embed.url.length).trimEnd()
+      : quoted.content;
   const open = () => router.push(tweetHref(quoted));
 
   return (
@@ -99,11 +107,12 @@ export function QuotedTweet({
             {formatRelativeTime(quoted.createdAt)}
           </time>
         </div>
-        {quoted.content && (
+        {text && (
           <p className="mt-1 line-clamp-6 text-[15px] leading-normal break-words whitespace-pre-wrap">
-            {quoted.content}
+            {text}
           </p>
         )}
+        {embed && <LinkEmbed embed={embed} compact />}
       </div>
       {image && (
         // eslint-disable-next-line @next/next/no-img-element
