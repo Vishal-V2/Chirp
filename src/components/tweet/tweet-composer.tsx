@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Image as ImageIcon, MapPin, Smile } from "lucide-react";
+import { motion } from "motion/react";
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +15,11 @@ function CharCounter({ count }: { count: number }) {
   const circumference = 2 * Math.PI * r;
   const progress = Math.min(count / MAX, 1);
   const color =
-    remaining < 0 ? "text-destructive" : remaining <= 20 ? "text-amber-500" : "text-primary";
+    remaining < 0
+      ? "text-destructive"
+      : remaining <= 20
+        ? "text-amber-500"
+        : "text-primary";
 
   return (
     <div className="flex items-center gap-2">
@@ -22,7 +27,14 @@ function CharCounter({ count }: { count: number }) {
         <span className={cn("text-sm tabular-nums", color)}>{remaining}</span>
       )}
       <svg viewBox="0 0 24 24" className="size-6 -rotate-90" aria-hidden>
-        <circle cx="12" cy="12" r={r} fill="none" strokeWidth="2" className="stroke-muted" />
+        <circle
+          cx="12"
+          cy="12"
+          r={r}
+          fill="none"
+          strokeWidth="2"
+          className="stroke-muted"
+        />
         <circle
           cx="12"
           cy="12"
@@ -33,7 +45,10 @@ function CharCounter({ count }: { count: number }) {
           strokeDasharray={circumference}
           strokeDashoffset={circumference * (1 - progress)}
           strokeLinecap="round"
-          className={color}
+          className={cn(
+            color,
+            "transition-[stroke-dashoffset,color] duration-300 ease-out",
+          )}
         />
       </svg>
     </div>
@@ -41,8 +56,8 @@ function CharCounter({ count }: { count: number }) {
 }
 
 export function TweetComposer({
-  placeholder = "What's happening?",
-  submitLabel = "Post",
+  placeholder = "What's the chirp?",
+  submitLabel = "Chirp",
   replyingTo,
   textareaId,
   author,
@@ -81,11 +96,13 @@ export function TweetComposer({
   }
 
   return (
-    <div className="flex gap-3 border-b px-4 pt-3 pb-2">
+    <div className="group/composer flex gap-3 border-b px-4 pt-3 pb-2">
+      {/* The avatar glows while you're writing. */}
       <UserAvatar
         name={author.displayName}
         username={author.username}
         src={author.avatarUrl ?? undefined}
+        className="ring-0 ring-primary/40 ring-offset-2 ring-offset-background transition-[box-shadow] duration-300 group-focus-within/composer:ring-2"
       />
       <form
         className="flex min-w-0 flex-1 flex-col"
@@ -131,7 +148,7 @@ export function TweetComposer({
                 key={label}
                 type="button"
                 aria-label={label}
-                className="rounded-full p-2 transition-colors hover:bg-primary/10"
+                className="pressable rounded-full p-2 hover:bg-primary/10"
               >
                 <Icon className="size-5" />
               </button>
@@ -139,13 +156,25 @@ export function TweetComposer({
           </div>
           <div className="flex items-center gap-3">
             {count > 0 && <CharCounter count={count} />}
-            <button
+            {/* Springs to life once there's something to post. */}
+            <motion.button
               type="submit"
               disabled={!canPost}
-              className="h-9 rounded-full bg-primary px-4 font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              initial={false}
+              animate={{
+                scale: canPost ? 1 : 0.94,
+                opacity: canPost ? 1 : 0.5,
+              }}
+              whileHover={canPost ? { scale: 1.04 } : undefined}
+              whileTap={canPost ? { scale: 0.92 } : undefined}
+              transition={{ type: "spring", stiffness: 500, damping: 22 }}
+              className={cn(
+                "h-9 rounded-full bg-primary px-4 font-bold text-primary-foreground transition-shadow",
+                canPost && "shadow-md shadow-primary/30",
+              )}
             >
-              {pending ? "Posting…" : submitLabel}
-            </button>
+              {pending ? "Sending…" : submitLabel}
+            </motion.button>
           </div>
         </div>
       </form>

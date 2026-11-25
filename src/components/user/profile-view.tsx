@@ -12,11 +12,11 @@ import { ProfileTabs } from "./profile-tabs";
 function ProfileSkeleton() {
   return (
     <div role="status" aria-label="Loading profile">
-      <div className="aspect-[3/1] animate-pulse bg-muted" />
+      <div className="aspect-[3/1] skeleton" />
       <div className="space-y-3 px-4 py-4">
-        <div className="-mt-14 size-20 animate-pulse rounded-full border-4 border-background bg-muted sm:size-[134px]" />
-        <div className="h-5 w-40 animate-pulse rounded bg-muted" />
-        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+        <div className="-mt-14 size-20 rounded-full border-4 border-background skeleton sm:size-[134px]" />
+        <div className="h-5 w-40 rounded skeleton" />
+        <div className="h-4 w-24 rounded skeleton" />
       </div>
     </div>
   );
@@ -81,7 +81,7 @@ export function ProfileView({
         title={user?.displayName ?? "Profile"}
         subtitle={
           user
-            ? `${user.tweetCount} ${user.tweetCount === 1 ? "post" : "posts"}`
+            ? `${user.tweetCount} ${user.tweetCount === 1 ? "chirp" : "chirps"}`
             : undefined
         }
       />

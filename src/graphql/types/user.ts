@@ -45,6 +45,43 @@ export function addUserTypes(builder: Builder) {
         resolve: (user, _args, ctx) =>
           ctx.userId !== null && user.followers.length > 0,
       }),
+      /** Whether this user follows the signed-in user (the "Follows you" badge). */
+      followsViewer: t.boolean({
+        select: (_args, ctx) => ({
+          following: {
+            where: { followingId: ctx.userId ?? undefined },
+            select: { followingId: true },
+            take: 1,
+          },
+        }),
+        resolve: (user, _args, ctx) =>
+          ctx.userId !== null &&
+          user.id !== ctx.userId &&
+          user.following.length > 0,
+      }),
+      /** People who follow this user, most recent first. */
+      followers: t.relatedConnection("followers", {
+        cursor: "followerId_followingId",
+        query: () => ({
+          orderBy: [{ createdAt: "desc" }, { followerId: "desc" }],
+        }),
+      }),
+      /** People this user follows, most recent first. */
+      following: t.relatedConnection("following", {
+        cursor: "followerId_followingId",
+        query: () => ({
+          orderBy: [{ createdAt: "desc" }, { followingId: "desc" }],
+        }),
+      }),
+    }),
+  });
+
+  /** One "A follows B" link; list pages read `follower` or `following` from it. */
+  builder.prismaObject("Follow", {
+    fields: (t) => ({
+      createdAt: t.expose("createdAt", { type: "DateTime" }),
+      follower: t.relation("follower"),
+      following: t.relation("following"),
     }),
   });
 

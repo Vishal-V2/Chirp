@@ -118,3 +118,57 @@ export const UpdateProfileMutation = graphql(`
     }
   }
 `);
+
+export const UserListFieldsFragment = graphql(`
+  fragment UserListFields on User {
+    id
+    username
+    displayName
+    bio
+    avatarUrl
+    viewerIsFollowing
+    followsViewer
+  }
+`);
+
+export const UserFollowersQuery = graphql(`
+  query UserFollowers($username: String!, $first: Int!, $after: String) {
+    user(username: $username) {
+      id
+      followers(first: $first, after: $after) {
+        edges {
+          node {
+            follower {
+              ...UserListFields
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`);
+
+export const UserFollowingQuery = graphql(`
+  query UserFollowing($username: String!, $first: Int!, $after: String) {
+    user(username: $username) {
+      id
+      following(first: $first, after: $after) {
+        edges {
+          node {
+            following {
+              ...UserListFields
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`);

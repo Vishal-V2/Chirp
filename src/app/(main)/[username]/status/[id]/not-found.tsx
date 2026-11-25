@@ -4,9 +4,9 @@ import { PageHeader } from "@/components/layout/page-header";
 export default function TweetNotFound() {
   return (
     <>
-      <PageHeader back title="Post" />
-      <div className="mx-auto max-w-sm px-8 py-12">
-        <p className="text-3xl font-extrabold">This post doesn&apos;t exist</p>
+      <PageHeader back title="Chirp" />
+      <div className="fade-up mx-auto max-w-sm px-8 py-12">
+        <p className="font-heading text-3xl font-extrabold tracking-tight">This chirp doesn&apos;t exist</p>
         <p className="mt-2 text-muted-foreground">It may have been deleted.</p>
         <Link
           href="/"

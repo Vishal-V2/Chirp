@@ -75,7 +75,7 @@ export function SubmitButton({ pending, children }: { pending: boolean; children
     <button
       type="submit"
       disabled={pending}
-      className="h-12 w-full rounded-full bg-foreground font-bold text-background transition-colors hover:bg-foreground/85 disabled:opacity-60"
+      className="pressable h-12 w-full rounded-full bg-foreground font-bold text-background hover:bg-foreground/85 disabled:opacity-60"
     >
       {pending ? "Please wait…" : children}
     </button>

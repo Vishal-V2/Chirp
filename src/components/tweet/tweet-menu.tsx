@@ -53,11 +53,11 @@ export function TweetMenu({
     // The cache's deleteTweet updater drops the tweet and refreshes the feeds.
     const result = await deleteTweet({ id: tweet.id });
     if (result.error || !result.data?.deleteTweet) {
-      toast.error(result.error?.graphQLErrors[0]?.message ?? "Couldn't delete the post.");
+      toast.error(result.error?.graphQLErrors[0]?.message ?? "Couldn't delete the chirp.");
       return;
     }
     setConfirmOpen(false);
-    toast.success("Your post was deleted");
+    toast.success("Chirp deleted");
     onDeleted?.();
   }
 
@@ -87,14 +87,14 @@ export function TweetMenu({
           )}
           <DropdownMenuItem onClick={copyLink} className="py-2 text-[15px]">
             <Link2 />
-            Copy link to post
+            Copy link to chirp
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
       <Dialog open={confirmOpen} onOpenChange={(open) => !fetching && setConfirmOpen(open)}>
         <DialogContent showCloseButton={false} className="gap-0 p-8 sm:max-w-80 sm:rounded-2xl">
-          <DialogTitle className="text-xl font-bold">Delete post?</DialogTitle>
+          <DialogTitle className="font-heading text-xl font-bold tracking-tight">Delete chirp?</DialogTitle>
           <DialogDescription className="mt-2 text-[15px]">
             This can&apos;t be undone. It will be removed from your profile and the timeline
             {tweet.replyCount > 0 ? ", along with its replies" : ""}.
@@ -104,7 +104,7 @@ export function TweetMenu({
               type="button"
               onClick={confirmDelete}
               disabled={fetching}
-              className="h-11 rounded-full bg-destructive font-bold text-white transition-colors hover:bg-destructive/90 disabled:opacity-60"
+              className="pressable h-11 rounded-full bg-destructive font-bold text-white hover:bg-destructive/90 disabled:opacity-60"
             >
               {fetching ? "Deleting…" : "Delete"}
             </button>
@@ -112,7 +112,7 @@ export function TweetMenu({
               type="button"
               onClick={() => setConfirmOpen(false)}
               disabled={fetching}
-              className="h-11 rounded-full border font-bold transition-colors hover:bg-muted"
+              className="pressable h-11 rounded-full border font-bold hover:bg-muted"
             >
               Cancel
             </button>

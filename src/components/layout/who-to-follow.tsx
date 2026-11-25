@@ -17,13 +17,15 @@ export function WhoToFollow() {
   if (!users || users.length === 0) return null;
 
   return (
-    <section className="overflow-hidden rounded-2xl border">
-      <h2 className="px-4 pt-3 pb-1 text-xl font-extrabold">Who to follow</h2>
+    <section>
+      <h2 className="px-4 pb-2 font-heading text-xl font-bold tracking-tight">
+        Who to follow
+      </h2>
       <ul>
         {users.map((user) => (
           <li
             key={user.id}
-            className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/60"
+            className="flex items-center gap-3 rounded-2xl px-4 py-2.5 transition-colors hover:bg-muted/60"
           >
             <Link
               href={`/${user.username}`}

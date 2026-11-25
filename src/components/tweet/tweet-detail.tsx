@@ -11,19 +11,32 @@ import { useTweetActions } from "./use-tweet-actions";
 
 function formatFullDate(iso: string) {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString("en", { hour: "numeric", minute: "2-digit" });
-  const date = d.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" });
+  const time = d.toLocaleTimeString("en", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const date = d.toLocaleDateString("en", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
   return `${time} · ${date}`;
 }
 
-function Stat({ count, one, many }: { count: number; one: string; many: string }) {
+function Stat({
+  count,
+  one,
+  many,
+}: {
+  count: number;
+  one: string;
+  many: string;
+}) {
   if (count === 0) return null;
   return (
     <span>
       <span className="font-bold text-foreground">{formatCount(count)}</span>{" "}
-      <span className="text-muted-foreground">
-        {count === 1 ? one : many}
-      </span>
+      <span className="text-muted-foreground">{count === 1 ? one : many}</span>
     </span>
   );
 }
@@ -38,8 +51,14 @@ export function TweetDetail({
   onReply: () => void;
   onDeleted?: () => void;
 }) {
-  const { liked, retweeted, likeCount, retweetCount, toggleLike, toggleRetweet } =
-    useTweetActions(tweet);
+  const {
+    liked,
+    retweeted,
+    likeCount,
+    retweetCount,
+    toggleLike,
+    toggleRetweet,
+  } = useTweetActions(tweet);
   const { author } = tweet;
   const { replyCount } = tweet;
   const hasStats = replyCount + retweetCount + likeCount > 0;
@@ -54,8 +73,13 @@ export function TweetDetail({
             src={author.avatarUrl ?? undefined}
           />
         </Link>
-        <Link href={`/${author.username}`} className="min-w-0 flex-1 leading-tight">
-          <p className="truncate font-bold hover:underline">{author.displayName}</p>
+        <Link
+          href={`/${author.username}`}
+          className="min-w-0 flex-1 leading-tight"
+        >
+          <p className="truncate font-bold hover:underline">
+            {author.displayName}
+          </p>
           <p className="truncate text-muted-foreground">@{author.username}</p>
         </Link>
         <TweetMenu tweet={tweet} onDeleted={onDeleted} />
@@ -64,7 +88,10 @@ export function TweetDetail({
       {tweet.parent && (
         <p className="mt-2 text-[15px] text-muted-foreground">
           Replying to{" "}
-          <Link href={`/${tweet.parent.author.username}`} className="text-primary hover:underline">
+          <Link
+            href={`/${tweet.parent.author.username}`}
+            className="text-primary hover:underline"
+          >
             @{tweet.parent.author.username}
           </Link>
         </p>
@@ -91,11 +118,18 @@ export function TweetDetail({
       )}
 
       <div className="flex justify-around border-y py-3">
-        <ActionButton icon={MessageCircle} label="Reply" tone="primary" large onClick={onReply} />
+        <ActionButton
+          icon={MessageCircle}
+          label="Reply"
+          tone="primary"
+          large
+          onClick={onReply}
+        />
         <ActionButton
           icon={Repeat2}
           label={retweeted ? "Undo repost" : "Repost"}
           tone="green"
+          effect="spin"
           large
           active={retweeted}
           onClick={toggleRetweet}
@@ -104,6 +138,7 @@ export function TweetDetail({
           icon={Heart}
           label={liked ? "Unlike" : "Like"}
           tone="pink"
+          effect="pop"
           large
           active={liked}
           onClick={toggleLike}

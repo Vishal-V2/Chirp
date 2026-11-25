@@ -3,13 +3,14 @@ import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 // Deterministic background color per user so fallbacks are easy to tell apart.
+// Deep tones that sit with the amethyst palette; all keep white initials legible.
 const palette = [
-  "bg-violet-500",
-  "bg-sky-500",
-  "bg-emerald-500",
-  "bg-amber-500",
-  "bg-rose-500",
-  "bg-teal-500",
+  "bg-[#5e35e8]", // amethyst
+  "bg-[#9c2a8a]", // starling magenta
+  "bg-[#2f5fc4]", // indigo
+  "bg-[#127a70]", // dark teal
+  "bg-[#b05a18]", // burnt amber
+  "bg-[#3d2a7a]", // plum
 ];
 
 function colorFor(seed: string) {

@@ -229,7 +229,7 @@ export function EditProfileDialog({
       <button
         type="button"
         onClick={() => handleOpenChange(true)}
-        className="h-9 rounded-full border px-4 text-sm font-bold transition-colors hover:bg-muted"
+        className="pressable h-9 rounded-full border px-4 text-sm font-bold hover:bg-muted"
       >
         Edit profile
       </button>
@@ -255,7 +255,7 @@ export function EditProfileDialog({
               >
                 <X className="size-5" />
               </DialogClose>
-              <DialogTitle className="flex-1 text-xl font-bold">
+              <DialogTitle className="flex-1 font-heading text-xl font-bold tracking-tight">
                 Edit profile
               </DialogTitle>
               <DialogDescription className="sr-only">

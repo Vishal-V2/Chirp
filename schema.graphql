@@ -3,6 +3,12 @@ A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `dat
 """
 scalar DateTime
 
+type Follow {
+  createdAt: DateTime!
+  follower: User!
+  following: User!
+}
+
 type Mutation {
   createTweet(content: String!, mediaUrls: [String!], parentId: ID): Tweet!
   deleteTweet(id: ID!): Boolean!
@@ -102,13 +108,36 @@ type User {
   createdAt: DateTime!
   displayName: String!
   followerCount: Int!
+  followers(after: String, before: String, first: Int, last: Int): UserFollowersConnection!
+  following(after: String, before: String, first: Int, last: Int): UserFollowingConnection!
   followingCount: Int!
+  followsViewer: Boolean!
   id: ID!
   replies(after: String, before: String, first: Int, last: Int): UserRepliesConnection!
   tweetCount: Int!
   tweets(after: String, before: String, first: Int, last: Int): UserTweetsConnection!
   username: String!
   viewerIsFollowing: Boolean!
+}
+
+type UserFollowersConnection {
+  edges: [UserFollowersConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type UserFollowersConnectionEdge {
+  cursor: String!
+  node: Follow!
+}
+
+type UserFollowingConnection {
+  edges: [UserFollowingConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type UserFollowingConnectionEdge {
+  cursor: String!
+  node: Follow!
 }
 
 type UserRepliesConnection {

@@ -10,7 +10,9 @@ export function BackButton() {
     <button
       type="button"
       aria-label="Back"
-      onClick={() => (window.history.length > 1 ? router.back() : router.push("/"))}
+      onClick={() =>
+        window.history.length > 1 ? router.back() : router.push("/")
+      }
       className="-ml-2 rounded-full p-2 transition-colors hover:bg-muted"
     >
       <ArrowLeft className="size-5" />

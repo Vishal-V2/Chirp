@@ -15,13 +15,13 @@ const REPLIES_PAGE = 50;
 
 function ThreadSkeleton() {
   return (
-    <div className="space-y-3 px-4 py-4" role="status" aria-label="Loading post">
+    <div className="space-y-3 px-4 py-4" role="status" aria-label="Loading chirp">
       <div className="flex items-center gap-3">
-        <div className="size-10 animate-pulse rounded-full bg-muted" />
-        <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+        <div className="size-10 rounded-full skeleton" />
+        <div className="h-4 w-40 rounded skeleton" />
       </div>
-      <div className="h-5 w-full animate-pulse rounded bg-muted" />
-      <div className="h-5 w-3/4 animate-pulse rounded bg-muted" />
+      <div className="h-5 w-full rounded skeleton" />
+      <div className="h-5 w-3/4 rounded skeleton" />
     </div>
   );
 }
@@ -58,7 +58,7 @@ export function TweetThread({ tweetId }: { tweetId: string }) {
     if (error) {
       return (
         <div className="px-4 py-8 text-center">
-          <p className="text-muted-foreground">Couldn&apos;t load this post.</p>
+          <p className="text-muted-foreground">Couldn&apos;t load this chirp.</p>
           <button
             type="button"
             onClick={() => reexecute({ requestPolicy: "network-only" })}
@@ -71,8 +71,8 @@ export function TweetThread({ tweetId }: { tweetId: string }) {
     }
     // Deleted while you were looking at it.
     return (
-      <div className="mx-auto max-w-sm px-8 py-12">
-        <p className="text-3xl font-extrabold">This post doesn&apos;t exist</p>
+      <div className="fade-up mx-auto max-w-sm px-8 py-12">
+        <p className="font-heading text-3xl font-extrabold tracking-tight">This chirp doesn&apos;t exist</p>
         <p className="mt-2 text-muted-foreground">It may have been deleted.</p>
         <Link href="/" className="mt-4 inline-block font-medium text-primary hover:underline">
           Back to home
@@ -84,7 +84,7 @@ export function TweetThread({ tweetId }: { tweetId: string }) {
   async function reply(content: string) {
     const result = await createTweet({ content, parentId: tweetId });
     if (result.error) {
-      return result.error.graphQLErrors[0]?.message ?? "Couldn't post your reply.";
+      return result.error.graphQLErrors[0]?.message ?? "Couldn't send your reply.";
     }
   }
 
@@ -105,7 +105,7 @@ export function TweetThread({ tweetId }: { tweetId: string }) {
         />
         {viewer && (
           <TweetComposer
-            placeholder="Post your reply"
+            placeholder="Write your reply"
             submitLabel="Reply"
             replyingTo={tweet.author.username}
             textareaId={REPLY_INPUT_ID}

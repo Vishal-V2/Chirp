@@ -1,8 +1,17 @@
+"use client";
+
 import Link from "next/link";
+import {
+  motion,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+} from "motion/react";
 import { CalendarDays } from "lucide-react";
 import { UserAvatar } from "@/components/user-avatar";
 import type { ProfileFieldsFragment } from "@/generated/gql/graphql";
 import { formatCount, formatJoined } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { EditProfileDialog, type ProfileSave } from "./edit-profile-dialog";
 import { FollowButton } from "./follow-button";
 
@@ -15,25 +24,55 @@ export function ProfileHeader({
   isSelf: boolean;
   onSave: (edits: ProfileSave) => Promise<string | void>;
 }) {
+  // Banner drifts slower than the page; the avatar shrinks as you scroll past.
+  const reduceMotion = useReducedMotion();
+  const { scrollY } = useScroll();
+  const bannerY = useTransform(scrollY, [0, 300], [0, 90]);
+  const avatarScale = useTransform(scrollY, [0, 180], [1, 0.72]);
+  // The plumage sheen shifts as you scroll, like feathers catching light.
+  const sheen = useTransform(scrollY, [0, 400], ["0% 30%", "100% 70%"]);
+
   return (
     <section className="border-b">
-      {/* Banner: image if set, otherwise a soft gradient. */}
-      <div className="aspect-[3/1] bg-gradient-to-br from-primary/60 via-primary/30 to-muted">
-        {user.bannerUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={user.bannerUrl} alt="" className="size-full object-cover" />
-        )}
+      {/* Banner: the uploaded image, or Chirp's iridescent plumage. */}
+      <div className="aspect-[3/1] overflow-hidden bg-muted">
+        <motion.div
+          className={cn("size-full", !user.bannerUrl && "plumage")}
+          style={
+            reduceMotion
+              ? undefined
+              : {
+                  y: bannerY,
+                  scale: 1.15,
+                  backgroundPosition: user.bannerUrl ? undefined : sheen,
+                }
+          }
+        >
+          {user.bannerUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.bannerUrl}
+              alt=""
+              className="size-full object-cover"
+            />
+          )}
+        </motion.div>
       </div>
 
       <div className="px-4 pb-4">
         <div className="flex items-start justify-between">
-          <UserAvatar
-            name={user.displayName}
-            username={user.username}
-            src={user.avatarUrl ?? undefined}
-            className="-mt-10 size-20 border-4 border-background after:hidden sm:-mt-[67px] sm:size-[134px]"
-            fallbackClassName="text-3xl sm:text-4xl"
-          />
+          <motion.div
+            className="relative origin-bottom-left"
+            style={reduceMotion ? undefined : { scale: avatarScale }}
+          >
+            <UserAvatar
+              name={user.displayName}
+              username={user.username}
+              src={user.avatarUrl ?? undefined}
+              className="-mt-10 size-20 border-4 border-background after:hidden sm:-mt-[67px] sm:size-[134px]"
+              fallbackClassName="text-3xl sm:text-4xl"
+            />
+          </motion.div>
           <div className="pt-3">
             {isSelf ? (
               <EditProfileDialog user={user} onSave={onSave} />
@@ -48,7 +87,9 @@ export function ProfileHeader({
         </div>
 
         <div className="mt-3 leading-tight">
-          <h2 className="text-xl font-extrabold">{user.displayName}</h2>
+          <h2 className="font-heading text-2xl font-extrabold tracking-tight">
+            {user.displayName}
+          </h2>
           <p className="text-muted-foreground">@{user.username}</p>
         </div>
 

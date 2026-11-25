@@ -16,7 +16,7 @@ export default async function ResetPasswordPage() {
 
   return (
     <>
-      <h1 className="mb-2 text-3xl font-extrabold">Choose a new password</h1>
+      <h1 className="mb-2 font-heading text-3xl font-extrabold tracking-tight">Choose a new password</h1>
       <p className="mb-8 text-muted-foreground">
         {viewer.email ? (
           <>

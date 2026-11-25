@@ -6,8 +6,10 @@ export default function ProfileNotFound() {
     <>
       <PageHeader back title="Profile" />
       <div className="aspect-[3/1] bg-muted" />
-      <div className="mx-auto max-w-sm px-8 py-12">
-        <p className="text-3xl font-extrabold">This account doesn&apos;t exist</p>
+      <div className="fade-up mx-auto max-w-sm px-8 py-12">
+        <p className="font-heading text-3xl font-extrabold tracking-tight">
+          This account doesn&apos;t exist
+        </p>
         <p className="mt-2 text-muted-foreground">Try searching for another.</p>
         <Link
           href="/explore"

@@ -10,7 +10,7 @@ async function requireTweet(id: string) {
     select: { id: true },
   });
   if (!tweet)
-    throw notFound("This post doesn't exist. It may have been deleted.");
+    throw notFound("This chirp doesn't exist. It may have been deleted.");
 }
 
 export function addTweetTypes(builder: Builder) {
@@ -129,8 +129,8 @@ export function addTweetTypes(builder: Builder) {
     content: z
       .string()
       .trim()
-      .min(1, "Tweet can't be empty.")
-      .max(280, "Tweets can be up to 280 characters."),
+      .min(1, "A chirp can't be empty.")
+      .max(280, "Chirps can be up to 280 characters."),
     mediaUrls: z.array(z.url()).max(4).default([]),
     parentId: z.string().optional(),
   });

@@ -18,9 +18,13 @@ export function PageHeader({
         <div className="flex h-[53px] items-center gap-6 px-4">
           {back && <BackButton />}
           <div className="min-w-0 leading-tight">
-            <h1 className="truncate text-xl font-bold">{title}</h1>
+            <h1 className="truncate font-heading text-xl font-bold tracking-tight">
+              {title}
+            </h1>
             {subtitle && (
-              <p className="truncate text-[13px] text-muted-foreground">{subtitle}</p>
+              <p className="truncate text-[13px] text-muted-foreground">
+                {subtitle}
+              </p>
             )}
           </div>
         </div>

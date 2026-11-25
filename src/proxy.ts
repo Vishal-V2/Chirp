@@ -41,6 +41,22 @@ export async function proxy(request: NextRequest) {
   // The GraphQL API answers signed-out requests itself (with UNAUTHENTICATED errors).
   if (path.startsWith("/api/")) return response;
 
+  // Supabase sends failed email links (expired, already used) back with
+  // ?error_code=… on whatever page; explain it on the login page instead.
+  const linkError = request.nextUrl.searchParams.get("error_code");
+  if (linkError && path !== "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = signedIn ? "/" : "/login";
+    url.search = signedIn
+      ? ""
+      : `?error=${encodeURIComponent(
+          linkError === "otp_expired"
+            ? "That email link has expired or was already used. Request a new one."
+            : "That email link didn't work. Please try again.",
+        )}`;
+    return NextResponse.redirect(url);
+  }
+
   // Reached /reset-password without a valid reset link (e.g. it expired).
   if (!signedIn && path === "/reset-password") {
     const url = request.nextUrl.clone();

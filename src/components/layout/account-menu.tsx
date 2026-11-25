@@ -44,7 +44,9 @@ export function AccountMenu({
           <>
             <div className="hidden min-w-0 flex-1 text-left leading-tight xl:block">
               <p className="truncate font-bold">{viewer.displayName}</p>
-              <p className="truncate text-sm text-muted-foreground">@{viewer.username}</p>
+              <p className="truncate text-sm text-muted-foreground">
+                @{viewer.username}
+              </p>
             </div>
             <MoreHorizontal className="hidden size-5 xl:block" />
           </>

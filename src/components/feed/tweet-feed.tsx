@@ -37,27 +37,27 @@ export function feedSource<Data, Vars extends PageVariables>(
 function TweetSkeleton() {
   return (
     <div className="flex gap-3 border-b px-4 py-3" aria-hidden>
-      <div className="size-10 shrink-0 animate-pulse rounded-full bg-muted" />
+      <div className="size-10 shrink-0 rounded-full skeleton" />
       <div className="flex-1 space-y-2 py-1">
-        <div className="h-3.5 w-1/3 animate-pulse rounded bg-muted" />
-        <div className="h-3.5 w-full animate-pulse rounded bg-muted" />
-        <div className="h-3.5 w-2/3 animate-pulse rounded bg-muted" />
+        <div className="h-3.5 w-1/3 rounded skeleton" />
+        <div className="h-3.5 w-full rounded skeleton" />
+        <div className="h-3.5 w-2/3 rounded skeleton" />
       </div>
     </div>
   );
 }
 
-function EmptyState({ title, body }: { title: string; body: string }) {
+export function EmptyState({ title, body }: { title: string; body: string }) {
   return (
-    <div className="mx-auto max-w-sm px-8 py-12">
-      <p className="text-3xl font-extrabold">{title}</p>
+    <div className="fade-up mx-auto max-w-sm px-8 py-12">
+      <p className="font-heading text-3xl font-extrabold tracking-tight">{title}</p>
       <p className="mt-2 text-muted-foreground">{body}</p>
     </div>
   );
 }
 
 /** Calls `onVisible` when scrolled near (600px before it enters the screen). */
-function LoadMoreTrigger({ onVisible }: { onVisible: () => void }) {
+export function LoadMoreTrigger({ onVisible }: { onVisible: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const callback = useRef(onVisible);
   useEffect(() => {
@@ -100,7 +100,7 @@ function FeedPage<Data, Vars extends PageVariables>({
     if (error) {
       return (
         <div className="px-4 py-8 text-center">
-          <p className="text-muted-foreground">Couldn&apos;t load posts.</p>
+          <p className="text-muted-foreground">Couldn&apos;t load chirps.</p>
           <button
             type="button"
             onClick={() => reexecute({ requestPolicy: "network-only" })}
@@ -115,7 +115,7 @@ function FeedPage<Data, Vars extends PageVariables>({
       return <EmptyState title={source.empty.title} body={source.empty.body} />;
     }
     return (
-      <div role="status" aria-label="Loading posts">
+      <div role="status" aria-label="Loading chirps">
         {Array.from({ length: isFirst ? 5 : 2 }, (_, i) => (
           <TweetSkeleton key={i} />
         ))}

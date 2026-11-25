@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 
 export function FeedTabs({
@@ -11,6 +12,8 @@ export function FeedTabs({
   onChange?: (tab: string) => void;
 }) {
   const [active, setActive] = useState(tabs[0]);
+  // Unique per tab bar, so the underline only slides within its own bar.
+  const indicatorId = useId();
 
   return (
     <div role="tablist" className="flex">
@@ -32,7 +35,11 @@ export function FeedTabs({
           <span className="relative py-4">
             {tab}
             {active === tab && (
-              <span className="absolute inset-x-0 bottom-0 h-1 rounded-full bg-primary" />
+              <motion.span
+                layoutId={indicatorId}
+                className="absolute inset-x-0 bottom-0 h-1 rounded-full bg-primary"
+                transition={{ type: "spring", stiffness: 500, damping: 38 }}
+              />
             )}
           </span>
         </button>

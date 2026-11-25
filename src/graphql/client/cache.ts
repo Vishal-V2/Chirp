@@ -13,6 +13,8 @@ const CONNECTION_TYPES = [
   "QueryHomeFeedConnection",
   "QueryLikedTweetsConnection",
   "TweetRepliesConnection",
+  "UserFollowersConnection",
+  "UserFollowingConnection",
   "UserRepliesConnection",
   "UserTweetsConnection",
 ];
@@ -62,6 +64,8 @@ function invalidateFeeds(cache: Cache) {
 export const graphcache = cacheExchange({
   keys: {
     PageInfo: embedded,
+    // A follow link has no id of its own; it lives inside its list.
+    Follow: embedded,
     ...Object.fromEntries(
       CONNECTION_TYPES.flatMap((t) => [
         [t, embedded],
@@ -106,11 +110,22 @@ export const graphcache = cacheExchange({
         invalidateFields(cache, "Query", ["likedTweets"]);
       },
       // Your Following feed changes when you follow or unfollow someone.
-      follow(_result, _args, cache) {
+      // Your Following feed changes, and so does their Followers list.
+      follow(_result, args, cache) {
         invalidateFields(cache, "Query", ["homeFeed"]);
+        invalidateFields(
+          cache,
+          { __typename: "User", id: String(args.userId) },
+          ["followers"],
+        );
       },
-      unfollow(_result, _args, cache) {
+      unfollow(_result, args, cache) {
         invalidateFields(cache, "Query", ["homeFeed"]);
+        invalidateFields(
+          cache,
+          { __typename: "User", id: String(args.userId) },
+          ["followers"],
+        );
       },
       deleteTweet(result, args, cache) {
         if (!result.deleteTweet) return;

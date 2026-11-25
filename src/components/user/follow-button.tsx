@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import { useMutation } from "urql";
 import { FollowMutation, UnfollowMutation } from "@/graphql/client/users";
@@ -49,21 +50,32 @@ export function FollowButton({
         void toggle();
       }}
       className={cn(
-        "group h-9 min-w-24 rounded-full px-4 text-sm font-bold transition-colors",
+        "pressable group h-9 min-w-24 overflow-hidden rounded-full px-4 text-sm font-bold",
         following
           ? "border hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
           : "bg-foreground text-background hover:bg-foreground/85",
         className,
       )}
     >
-      {following ? (
-        <>
-          <span className="group-hover:hidden">Following</span>
-          <span className="hidden group-hover:inline">Unfollow</span>
-        </>
-      ) : (
-        "Follow"
-      )}
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.span
+          key={following ? "following" : "follow"}
+          className="inline-block"
+          initial={{ y: following ? 14 : -14, opacity: 0, scale: 0.8 }}
+          animate={{ y: 0, opacity: 1, scale: 1 }}
+          exit={{ y: following ? -14 : 14, opacity: 0, scale: 0.8 }}
+          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        >
+          {following ? (
+            <>
+              <span className="group-hover:hidden">Following</span>
+              <span className="hidden group-hover:inline">Unfollow</span>
+            </>
+          ) : (
+            "Follow"
+          )}
+        </motion.span>
+      </AnimatePresence>
     </button>
   );
 }
