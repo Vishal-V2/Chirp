@@ -32,13 +32,13 @@ const PAGE = 40;
 
 /**
  * Likes and reposts of the same chirp, and follows, are grouped
- * ("Sam and 2 others liked your chirp"); each reply or mention stays on its own.
+ * ("Sam and 2 others liked your chirp"); each reply, mention or quote stays on its own.
  */
 function group(items: Item[]): Group[] {
   const groups = new Map<string, Group>();
   for (const n of items) {
     const key =
-      n.type === "REPLY" || n.type === "MENTION"
+      n.type === "REPLY" || n.type === "MENTION" || n.type === "QUOTE"
         ? `${n.type}:${n.id}`
         : n.type === "FOLLOW"
           ? "FOLLOW"
@@ -91,7 +91,7 @@ const ICONS = {
 
 /** Likes, reposts and follows: icon, faces, one line, and the chirp it's about. */
 function GroupRow({ g, unread }: { g: Group; unread: boolean }) {
-  if (g.type === "REPLY" || g.type === "MENTION") return null;
+  if (g.type === "REPLY" || g.type === "MENTION" || g.type === "QUOTE") return null;
   const { icon: Icon, className } = ICONS[g.type];
   const href =
     g.type === "FOLLOW"
@@ -202,12 +202,12 @@ export function NotificationsView() {
       ) : items.length === 0 ? (
         <EmptyState
           title="Nothing to see here yet"
-          body="Likes, reposts, replies, mentions and new followers show up here the moment they happen."
+          body="Likes, reposts, quotes, replies, mentions and new followers show up here the moment they happen."
         />
       ) : (
         <>
           {group(items).map((g) =>
-            (g.type === "REPLY" || g.type === "MENTION") && g.tweet ? (
+            (g.type === "REPLY" || g.type === "MENTION" || g.type === "QUOTE") && g.tweet ? (
               <div
                 key={g.key}
                 className={cn(unreadIds.has(g.ids[0]) && "bg-primary/[0.06]")}

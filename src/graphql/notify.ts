@@ -11,8 +11,8 @@ type Event = {
 
 /** Likes, reposts and follows can be undone, so each pair gets one notification. */
 const dedupeKey = (e: Event) =>
-  e.type === "REPLY" || e.type === "MENTION"
-    ? null // each reply/mention is its own event
+  e.type === "REPLY" || e.type === "MENTION" || e.type === "QUOTE"
+    ? null // each reply/mention/quote is its own event
     : `${e.type}:${e.actorId}:${e.tweetId ?? e.recipientId}`;
 
 /**

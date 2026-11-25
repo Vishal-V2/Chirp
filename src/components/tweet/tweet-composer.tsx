@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { Image as ImageIcon, ListChecks, MapPin, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { UserAvatar } from "@/components/user-avatar";
+import type { TweetData } from "@/lib/types";
 import { LocationPicker } from "./location-picker";
+import { QuotedTweet } from "./quoted-tweet";
 import { useMentionSuggestions } from "./mention-suggestions";
 import {
   NEW_POLL,
@@ -111,6 +113,7 @@ export function TweetComposer({
   replyingTo,
   textareaId,
   author,
+  quoted,
   onPost,
 }: {
   placeholder?: string;
@@ -118,6 +121,8 @@ export function TweetComposer({
   /** Username being replied to; shows a "Replying to @x" line. */
   replyingTo?: string;
   textareaId?: string;
+  /** Writing a quote: the chirp being quoted, shown under your comment. */
+  quoted?: TweetData;
   /** The signed-in user: avatar next to the box, and the folder images upload into. */
   author: {
     id: string;
@@ -367,6 +372,14 @@ export function TweetComposer({
           </p>
         )}
 
+        {quoted && (
+          <QuotedTweet
+            quoted={quoted}
+            interactive={false}
+            className="mt-0 mb-2"
+          />
+        )}
+
         {error && (
           <p role="alert" className="pb-2 text-sm text-destructive">
             {error}
@@ -417,14 +430,16 @@ export function TweetComposer({
                 GIF
               </span>
             </ToolButton>
-            <ToolButton
-              label={poll ? "Remove poll" : "Add a poll"}
-              active={Boolean(poll)}
-              disabled={pending || attachments.length > 0}
-              onClick={() => setPoll(poll ? null : NEW_POLL)}
-            >
-              <ListChecks className="size-5" />
-            </ToolButton>
+            {!quoted && (
+              <ToolButton
+                label={poll ? "Remove poll" : "Add a poll"}
+                active={Boolean(poll)}
+                disabled={pending || attachments.length > 0}
+                onClick={() => setPoll(poll ? null : NEW_POLL)}
+              >
+                <ListChecks className="size-5" />
+              </ToolButton>
+            )}
             <ToolButton
               label="Add location"
               active={editingLocation || Boolean(location.trim())}

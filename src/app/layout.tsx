@@ -21,6 +21,10 @@ const body = Schibsted_Grotesk({
 export const metadata: Metadata = {
   title: { default: "Chirp", template: "%s / Chirp" },
   description: "Short posts from the people you follow.",
+  // Don't tell other sites which Chirp page a visitor came from (privacy). It also
+  // lets X's GIF videos load: their CDN refuses requests referred by other sites.
+  // The YouTube player sets its own policy, since YouTube requires one.
+  referrer: "same-origin",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

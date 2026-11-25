@@ -119,6 +119,14 @@ export const graphcache = cacheExchange({
             "tweetCount",
           ]);
         }
+        // A quote: refresh the quoted chirp's quote count.
+        if (args.quotedId) {
+          invalidateFields(
+            cache,
+            { __typename: "Tweet", id: String(args.quotedId) },
+            ["quoteCount"],
+          );
+        }
         // A reply: refresh the parent's reply list and count. Only those fields —
         // the new reply links to its parent, so the parent itself must stay cached.
         if (args.parentId) {

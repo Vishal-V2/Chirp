@@ -19,6 +19,10 @@ import { useViewer } from "@/components/viewer-provider";
 import { formatRelativeTime } from "@/lib/format";
 import type { TweetData } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { findEmbed } from "@/lib/embeds";
+import { LinkEmbed } from "./link-embed";
+import { QuotedTweet } from "./quoted-tweet";
+import { RepostControl } from "./repost-control";
 import { RichText } from "./rich-text";
 import { TweetMedia } from "./tweet-media";
 import { TweetPoll } from "./tweet-poll";
@@ -206,6 +210,11 @@ export function TweetCard({
     toggleBookmark,
   } = useTweetActions(tweet);
   const { author } = tweet;
+  // A YouTube / X link becomes an inline embed, unless the chirp already has media, a poll or a quote.
+  const embed =
+    tweet.mediaUrls?.length || tweet.poll || tweet.isQuote
+      ? null
+      : findEmbed(tweet.content);
   const href = tweetHref(tweet);
   // Collapse away right after deleting; the feed refetch then drops it for good.
   const [deleted, setDeleted] = useState(false);
@@ -295,7 +304,7 @@ export function TweetCard({
 
             {tweet.content && (
               <p className="text-[15px] leading-normal break-words whitespace-pre-wrap">
-                <RichText text={tweet.content} />
+                <RichText text={tweet.content} hideLink={embed?.url} />
               </p>
             )}
 
@@ -303,6 +312,8 @@ export function TweetCard({
               urls={tweet.mediaUrls ?? []}
               author={author.displayName}
             />
+            {tweet.isQuote && <QuotedTweet quoted={tweet.quoted} />}
+            {embed && <LinkEmbed embed={embed} />}
 
             {tweet.poll && <TweetPoll poll={tweet.poll} />}
 
@@ -322,14 +333,11 @@ export function TweetCard({
                 tone="primary"
                 onClick={() => router.push(href)}
               />
-              <ActionButton
-                icon={Repeat2}
-                label={retweeted ? "Undo repost" : "Repost"}
+              <RepostControl
+                tweet={tweet}
+                retweeted={retweeted}
                 count={retweetCount}
-                tone="green"
-                effect="spin"
-                active={retweeted}
-                onClick={toggleRetweet}
+                onToggle={toggleRetweet}
               />
               <ActionButton
                 icon={Heart}

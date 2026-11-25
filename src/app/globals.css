@@ -218,3 +218,16 @@
     transform: none;
   }
 }
+
+/* Embedded X posts (react-tweet): fit the chirp column and Chirp's colours. */
+.link-embed .react-tweet-theme {
+  --tweet-container-margin: 0.75rem 0 0;
+  --tweet-font-family: var(--font-body), system-ui, sans-serif;
+  --tweet-bg-color: var(--background);
+  --tweet-bg-color-hover: var(--muted);
+  --tweet-quoted-bg-color-hover: var(--muted);
+  --tweet-border: 1px solid var(--border);
+  --tweet-font-color: var(--foreground);
+  --tweet-font-color-secondary: var(--muted-foreground);
+  max-width: 100%;
+}

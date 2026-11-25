@@ -1,4 +1,4 @@
-import type { PollFieldsFragment } from "@/generated/gql/graphql";
+import type { PollFieldsFragment, QuotedTweetFieldsFragment } from "@/generated/gql/graphql";
 
 /** What the tweet UI needs to render one tweet. Both GraphQL results and the sample data fit this shape. */
 export type TweetData = {
@@ -9,6 +9,10 @@ export type TweetData = {
   /** A place name like "Pune, India". */
   location?: string | null;
   poll?: PollFieldsFragment | null;
+  /** Quote reposts: the embedded chirp (null if it was deleted). */
+  isQuote?: boolean;
+  quoteCount?: number;
+  quoted?: QuotedTweetFieldsFragment | null;
   createdAt: string;
   likeCount: number;
   retweetCount: number;

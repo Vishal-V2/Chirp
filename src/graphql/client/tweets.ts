@@ -30,6 +30,27 @@ export const TweetFieldsFragment = graphql(`
     poll {
       ...PollFields
     }
+    isQuote
+    quoteCount
+    quoted {
+      ...QuotedTweetFields
+    }
+  }
+`);
+
+/** What a quote shows of the chirp it embeds (one level; no nested quotes). */
+export const QuotedTweetFieldsFragment = graphql(`
+  fragment QuotedTweetFields on Tweet {
+    id
+    content
+    mediaUrls
+    createdAt
+    author {
+      id
+      username
+      displayName
+      avatarUrl
+    }
   }
 `);
 
@@ -101,6 +122,7 @@ export const CreateTweetMutation = graphql(`
     $location: String
     $poll: PollInput
     $parentId: ID
+    $quotedId: ID
   ) {
     createTweet(
       content: $content
@@ -108,6 +130,7 @@ export const CreateTweetMutation = graphql(`
       location: $location
       poll: $poll
       parentId: $parentId
+      quotedId: $quotedId
     ) {
       ...TweetFields
     }

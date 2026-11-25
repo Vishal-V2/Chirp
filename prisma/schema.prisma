@@ -59,6 +59,14 @@ model Tweet {
   parent   Tweet?  @relation("replies", fields: [parentId], references: [id], onDelete: Cascade)
   replies  Tweet[] @relation("replies")
 
+  /// Set on a quote repost: the chirp being quoted. If that chirp is deleted
+  /// the quote stays and shows "This chirp is unavailable".
+  quotedId String?
+  quoted   Tweet?  @relation("quotes", fields: [quotedId], references: [id], onDelete: SetNull)
+  /// True for quote reposts, even after the quoted chirp is deleted.
+  isQuote  Boolean @default(false)
+  quotes   Tweet[] @relation("quotes")
+
   likes    Like[]
   retweets Retweet[]
   poll     Poll?
@@ -68,6 +76,7 @@ model Tweet {
 
   @@index([authorId, createdAt(sort: Desc)])
   @@index([hashtags], type: Gin)
+  @@index([quotedId])
   @@index([parentId, createdAt])
   @@index([createdAt(sort: Desc)])
 }
@@ -194,6 +203,7 @@ enum NotificationType {
   REPLY
   FOLLOW
   MENTION
+  QUOTE
 }
 
 /// "actor did something to recipient's chirp / to recipient".

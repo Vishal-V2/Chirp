@@ -1,18 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import {
-  Bookmark,
-  Heart,
-  MessageCircle,
-  Repeat2,
-  Share,
-  MapPin,
-} from "lucide-react";
+import { Bookmark, Heart, MessageCircle, Share, MapPin } from "lucide-react";
 import { UserAvatar } from "@/components/user-avatar";
 import { formatCount } from "@/lib/format";
 import type { TweetData } from "@/lib/types";
 import { ActionButton } from "./tweet-card";
+import { findEmbed } from "@/lib/embeds";
+import { LinkEmbed } from "./link-embed";
+import { QuotedTweet } from "./quoted-tweet";
+import { RepostControl } from "./repost-control";
 import { RichText } from "./rich-text";
 import { TweetMedia } from "./tweet-media";
 import { TweetPoll } from "./tweet-poll";
@@ -73,8 +70,14 @@ export function TweetDetail({
     toggleBookmark,
   } = useTweetActions(tweet);
   const { author } = tweet;
+  // A YouTube / X link becomes an inline embed, unless the chirp already has media, a poll or a quote.
+  const embed =
+    tweet.mediaUrls?.length || tweet.poll || tweet.isQuote
+      ? null
+      : findEmbed(tweet.content);
   const { replyCount } = tweet;
-  const hasStats = replyCount + retweetCount + likeCount > 0;
+  const hasStats =
+    replyCount + retweetCount + (tweet.quoteCount ?? 0) + likeCount > 0;
 
   return (
     <article className="px-4 pt-3">
@@ -112,11 +115,13 @@ export function TweetDetail({
 
       {tweet.content && (
         <p className="mt-3 text-[17px] leading-normal break-words whitespace-pre-wrap">
-          <RichText text={tweet.content} />
+          <RichText text={tweet.content} hideLink={embed?.url} />
         </p>
       )}
 
       <TweetMedia urls={tweet.mediaUrls ?? []} author={author.displayName} />
+      {tweet.isQuote && <QuotedTweet quoted={tweet.quoted} />}
+      {embed && <LinkEmbed embed={embed} />}
 
       {tweet.poll && <TweetPoll poll={tweet.poll} />}
 
@@ -140,6 +145,7 @@ export function TweetDetail({
         <div className="flex gap-5 border-t py-4 text-[15px]">
           <Stat count={replyCount} one="Reply" many="Replies" />
           <Stat count={retweetCount} one="Repost" many="Reposts" />
+          <Stat count={tweet.quoteCount ?? 0} one="Quote" many="Quotes" />
           <Stat count={likeCount} one="Like" many="Likes" />
         </div>
       )}
@@ -152,14 +158,12 @@ export function TweetDetail({
           large
           onClick={onReply}
         />
-        <ActionButton
-          icon={Repeat2}
-          label={retweeted ? "Undo repost" : "Repost"}
-          tone="green"
-          effect="spin"
+        <RepostControl
+          tweet={tweet}
+          retweeted={retweeted}
+          count={retweetCount}
+          onToggle={toggleRetweet}
           large
-          active={retweeted}
-          onClick={toggleRetweet}
         />
         <ActionButton
           icon={Heart}

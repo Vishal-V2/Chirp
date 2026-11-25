@@ -86,6 +86,11 @@ export function addTweetTypes(builder: Builder) {
       mediaUrls: t.exposeStringList("mediaUrls"),
       location: t.exposeString("location", { nullable: true }),
       poll: t.relation("poll", { nullable: true }),
+      /** The chirp this one quotes (null if it isn't a quote, or the original was deleted). */
+      quoted: t.relation("quoted", { nullable: true }),
+      /** True for quote reposts, even after the quoted chirp is gone. */
+      isQuote: t.exposeBoolean("isQuote"),
+      quoteCount: t.relationCount("quotes"),
       createdAt: t.expose("createdAt", { type: "DateTime" }),
       author: t.relation("author"),
       parent: t.relation("parent", { nullable: true }),
@@ -356,12 +361,16 @@ export function addTweetTypes(builder: Builder) {
           .transform((l) => l || undefined),
         poll: pollInput,
         parentId: z.string().optional(),
+        quotedId: z.string().optional(),
       })
       .refine((t) => !t.poll || t.content.length > 0, {
         message: "Add a question for your poll.",
       })
       .refine((t) => t.content.length > 0 || t.mediaUrls.length > 0, {
         message: "A chirp needs some text or an image.",
+      })
+      .refine((t) => !(t.poll && t.quotedId), {
+        message: "A quote can't have a poll.",
       })
       .refine((t) => !t.poll || t.mediaUrls.length === 0, {
         message: "A poll can't have images or a GIF.",
@@ -384,6 +393,8 @@ export function addTweetTypes(builder: Builder) {
         location: t.arg.string(),
         poll: t.arg({ type: PollInput }),
         parentId: t.arg.id(),
+        /** Makes this a quote repost of that chirp. */
+        quotedId: t.arg.id(),
       },
       resolve: async (query, _root, args, ctx) => {
         const authorId = requireUser(ctx);
@@ -393,16 +404,20 @@ export function addTweetTypes(builder: Builder) {
           location: args.location ?? undefined,
           poll: args.poll ?? undefined,
           parentId: args.parentId ? String(args.parentId) : undefined,
+          quotedId: args.quotedId ? String(args.quotedId) : undefined,
         });
         if (!parsed.success) throw badInput(parsed.error.issues[0].message);
         // Replying to a post that was just deleted gives a clear error.
         if (parsed.data.parentId) await requireTweet(parsed.data.parentId);
+        // Quoting a chirp that was just deleted gives a clear error too.
+        if (parsed.data.quotedId) await requireTweet(parsed.data.quotedId);
         const { poll, ...tweet } = parsed.data;
         const created = await prisma.tweet.create({
           ...query,
           data: {
             ...tweet,
             hashtags: extractHashtags(tweet.content),
+            isQuote: Boolean(tweet.quotedId),
             authorId,
             ...(poll && {
               poll: {
@@ -425,6 +440,18 @@ export function addTweetTypes(builder: Builder) {
           if (recipientId) {
             await notify({
               type: "REPLY",
+              actorId: authorId,
+              recipientId,
+              tweetId: created.id,
+            });
+          }
+        }
+        // Tell the person whose chirp you quoted.
+        if (tweet.quotedId) {
+          const recipientId = await authorOf(tweet.quotedId);
+          if (recipientId) {
+            await notify({
+              type: "QUOTE",
               actorId: authorId,
               recipientId,
               tweetId: created.id,

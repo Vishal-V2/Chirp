@@ -4,7 +4,7 @@ import type { Builder } from "../builder";
 
 export function addNotificationTypes(builder: Builder) {
   const NotificationTypeEnum = builder.enumType("NotificationType", {
-    values: ["LIKE", "REPOST", "REPLY", "FOLLOW", "MENTION"] as const,
+    values: ["LIKE", "REPOST", "REPLY", "FOLLOW", "MENTION", "QUOTE"] as const,
   });
 
   builder.prismaObject("Notification", {

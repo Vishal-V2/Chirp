@@ -2,10 +2,25 @@ import Link from "next/link";
 import { tokenize } from "@/lib/rich-text";
 
 /** Chirp text with @mentions, #hashtags and web links turned into links. */
-export function RichText({ text }: { text: string }) {
+export function RichText({
+  text,
+  hideLink,
+}: {
+  text: string;
+  hideLink?: string;
+}) {
+  let segments = tokenize(text);
+  // A trailing link that's shown as an embed below isn't repeated as text.
+  const last = segments.at(-1);
+  if (hideLink && last?.kind === "link" && last.href === hideLink) {
+    segments = segments.slice(0, -1);
+    const prev = segments.at(-1);
+    if (prev?.kind === "text")
+      segments[segments.length - 1] = { ...prev, text: prev.text.trimEnd() };
+  }
   return (
     <>
-      {tokenize(text).map((s, i) => {
+      {segments.map((s, i) => {
         if (s.kind === "mention") {
           return (
             <Link
