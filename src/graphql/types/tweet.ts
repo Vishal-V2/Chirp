@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Builder } from "../builder";
 import { badInput, notFound, requireUser } from "../auth";
+import { loadHomeFeed } from "../home-feed";
 import { authorOf, notify, unnotify } from "../notify";
 import {
   extractHashtags,
@@ -149,6 +150,19 @@ export function addTweetTypes(builder: Builder) {
     }),
   });
 
+  const Reposter = builder
+    .objectRef<{ id: string; username: string; displayName: string }>(
+      "Reposter",
+    )
+    .implement({
+      description: "Who reposted a chirp into your feed.",
+      fields: (t) => ({
+        id: t.exposeID("id"),
+        username: t.exposeString("username"),
+        displayName: t.exposeString("displayName"),
+      }),
+    });
+
   const Trend = builder
     .objectRef<{ tag: string; chirpCount: number }>("Trend")
     .implement({
@@ -167,25 +181,38 @@ export function addTweetTypes(builder: Builder) {
       resolve: (query, _root, { id }) =>
         prisma.tweet.findUnique({ ...query, where: { id: String(id) } }),
     }),
-    /** Home timeline: your tweets plus tweets from people you follow. */
-    homeFeed: t.prismaConnection({
-      type: "Tweet",
-      cursor: "id",
-      resolve: (query, _root, _args, ctx) => {
-        const me = requireUser(ctx);
-        return prisma.tweet.findMany({
-          ...query,
-          where: {
-            parentId: null,
-            OR: [
-              { authorId: me },
-              { author: { followers: { some: { followerId: me } } } },
-            ],
-          },
-          orderBy: newestFirst,
-        });
+    /**
+     * Your "Following" feed: chirps from you and the people you follow, plus
+     * their reposts (each chirp once, at its latest activity).
+     */
+    homeFeed: t.connection(
+      {
+        type: TweetRef,
+        resolve: (_root, args, ctx) => loadHomeFeed(requireUser(ctx), args),
       },
-    }),
+      { name: "QueryHomeFeedConnection" },
+      {
+        name: "QueryHomeFeedConnectionEdge",
+        fields: (te) => ({
+          repostedBy: te.field({
+            type: Reposter,
+            nullable: true,
+            description:
+              "Set when this entry is here because someone reposted it.",
+            resolve: (edge) =>
+              (
+                edge as {
+                  repostedBy?: {
+                    id: string;
+                    username: string;
+                    displayName: string;
+                  } | null;
+                }
+              ).repostedBy ?? null,
+          }),
+        }),
+      },
+    ),
     /** Chirps with a #tag, newest first. */
     hashtagTweets: t.prismaConnection({
       type: "Tweet",

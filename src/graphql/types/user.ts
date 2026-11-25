@@ -115,17 +115,25 @@ export function addUserTypes(
     }),
   });
 
+  /** One of your likes: when you liked it, and the chirp. */
+  builder.prismaObject("Like", {
+    fields: (t) => ({
+      likedAt: t.expose("createdAt", { type: "DateTime" }),
+      tweet: t.relation("tweet"),
+    }),
+  });
+
   builder.queryFields((t) => ({
-    /** Tweets the signed-in user has liked, most recently liked first. Private to them. */
+    /** Your likes, most recently liked first (not by when the chirp was posted). Private. */
     likedTweets: t.prismaConnection({
-      type: "Tweet",
-      cursor: "id",
+      type: "Like",
+      cursor: "userId_tweetId",
       resolve: (query, _root, _args, ctx) => {
         const me = requireUser(ctx);
-        return prisma.tweet.findMany({
+        return prisma.like.findMany({
           ...query,
-          where: { likes: { some: { userId: me } } },
-          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          where: { userId: me },
+          orderBy: [{ createdAt: "desc" }, { tweetId: "desc" }],
         });
       },
     }),

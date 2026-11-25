@@ -33,6 +33,11 @@ type Follow {
   following: User!
 }
 
+type Like {
+  likedAt: DateTime!
+  tweet: Tweet!
+}
+
 type Message {
   content: String!
   conversationId: ID!
@@ -165,6 +170,9 @@ type QueryHomeFeedConnection {
 type QueryHomeFeedConnectionEdge {
   cursor: String!
   node: Tweet!
+
+  """Set when this entry is here because someone reposted it."""
+  repostedBy: Reposter
 }
 
 type QueryLikedTweetsConnection {
@@ -174,7 +182,7 @@ type QueryLikedTweetsConnection {
 
 type QueryLikedTweetsConnectionEdge {
   cursor: String!
-  node: Tweet!
+  node: Like!
 }
 
 type QueryNotificationsConnection {
@@ -205,6 +213,13 @@ type QuerySearchTweetsConnection {
 type QuerySearchTweetsConnectionEdge {
   cursor: String!
   node: Tweet!
+}
+
+"""Who reposted a chirp into your feed."""
+type Reposter {
+  displayName: String!
+  id: ID!
+  username: String!
 }
 
 """A #tag and how many chirps used it recently."""

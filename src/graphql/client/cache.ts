@@ -92,6 +92,8 @@ export const graphcache = cacheExchange({
     UserTimelineEdge: embedded,
     // A bookmark has no id of its own; it lives inside your Bookmarks list.
     Bookmark: embedded,
+    // Same for a like in your Likes list.
+    Like: embedded,
     // A follow link has no id of its own; it lives inside its list.
     Follow: embedded,
     ...Object.fromEntries(

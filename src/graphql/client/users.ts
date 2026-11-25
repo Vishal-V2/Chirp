@@ -68,7 +68,9 @@ export const LikedTweetsQuery = graphql(`
     likedTweets(first: $first, after: $after) {
       edges {
         node {
-          ...TweetFields
+          tweet {
+            ...TweetFields
+          }
         }
       }
       pageInfo {

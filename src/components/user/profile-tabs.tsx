@@ -88,7 +88,10 @@ export function ProfileTabs({
             source={feedSource({
               query: LikedTweetsQuery,
               variables: {},
-              select: (d) => d.likedTweets,
+              select: (d) => ({
+                ...d.likedTweets,
+                edges: d.likedTweets.edges.map((e) => ({ node: e.node.tweet })),
+              }),
               empty: {
                 title: "You don't have any likes yet",
                 body: "Tap the heart on any chirp to save it here. Only you can see your likes.",

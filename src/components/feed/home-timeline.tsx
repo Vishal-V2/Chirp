@@ -36,7 +36,13 @@ const SOURCES = {
   following: feedSource({
     query: HomeFeedQuery,
     variables: {},
-    select: (d) => d.homeFeed,
+    select: (d) => ({
+      ...d.homeFeed,
+      edges: d.homeFeed.edges.map((e) => ({
+        node: e.node,
+        repostedBy: e.repostedBy ?? undefined,
+      })),
+    }),
     empty: {
       title: "Welcome to Chirp!",
       body: "Chirps from you and the people you follow land here. Follow a few people from “Who to follow” to fill it up.",

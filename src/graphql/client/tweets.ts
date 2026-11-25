@@ -77,6 +77,11 @@ export const HomeFeedQuery = graphql(`
   query HomeFeed($first: Int!, $after: String) {
     homeFeed(first: $first, after: $after) {
       edges {
+        repostedBy {
+          id
+          username
+          displayName
+        }
         node {
           ...TweetFields
         }
