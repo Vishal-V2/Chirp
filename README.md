@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Chirp
 
-## Getting Started
+A Twitter/X-style social app: short posts ("chirps"), follows, likes, reposts, quotes, real-time messages and notifications.
 
-First, run the development server:
+**Live:** https://chirp-xi-ruddy.vercel.app
+
+## Features
+
+- **Accounts:** sign up with email and password or **Continue with Google**, email confirmation, forgot/reset password, and choosing a username at onboarding.
+- **Chirps:** up to 280 characters, up to 4 images or a GIF, polls, location, replies, quote reposts, reposts, likes, bookmarks and delete.
+- **Rich text:** `@mentions` (with notifications), `#hashtags` (with hashtag pages and trends) and links. YouTube and X links embed, and X GIFs play inline.
+- **Feeds:** For you and Following (including reposts), plus Explore with search, trends and popular chirps.
+- **Profiles:** avatar (cropped 1:1) and banner (cropped 3:1), bio, an editable username with a live availability check, and Chirps / Replies / Likes tabs (Likes ordered by when you liked them), followers and following.
+- **Real time:** private 1:1 messages with typing indicators, and live notifications for likes, replies, reposts, quotes, follows and mentions.
+- **Mobile:** bottom navigation, and bars that slide away as you scroll.
+- **UI:** light and dark themes, motion and animations (respecting reduced-motion settings).
+
+## Tech stack
+
+| Area | Choice |
+|---|---|
+| Framework | Next.js 16 (App Router, Turbopack), React 19, TypeScript |
+| API | GraphQL: GraphQL Yoga + Pothos (Prisma and Relay plugins) at `/api/graphql` |
+| Client data | urql + Graphcache (normalized cache, optimistic updates), GraphQL Codegen |
+| Database | PostgreSQL on Supabase, Prisma 7 ORM with `@prisma/adapter-pg` |
+| Auth | Supabase Auth (email/password + Google OAuth) via `@supabase/ssr` |
+| Storage | Supabase Storage (`profile-images`, `chirp-media`) |
+| Realtime | Supabase Realtime (private channels) |
+| Styling | Tailwind CSS 4, shadcn/ui, Motion |
+| Hosting | Vercel (region `hnd1`) |
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 20+
+- A Supabase project
+
+### 1. Install
+
+```bash
+npm install
+```
+
+`postinstall` generates the Prisma client and the GraphQL types.
+
+### 2. Environment variables
+
+Copy `.env.example` to `.env` and fill it in from Supabase (**Project Settings → Database / API**):
+
+| Variable | Used for |
+|---|---|
+| `DATABASE_URL` | App runtime: transaction pooler (port 6543, `?pgbouncer=true`) |
+| `DIRECT_URL` | Migrations: session pooler / direct connection (port 5432) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable (anon) key |
+
+Never commit `.env`.
+
+### 3. Database
+
+```bash
+npm run db:migrate   # apply migrations (tables, RLS, storage and realtime policies)
+npm run db:seed      # optional: sample users and chirps. WIPES all Chirp tables first; never run on production
+```
+
+### 4. Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Supabase settings
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Authentication → URL Configuration:**
+  - **Site URL:** your production URL
+  - **Redirect URLs:** `https://<your-domain>/**` and `http://localhost:3000/**`
+- **Authentication → Sign In / Providers → Google:** enable it, and add the Client ID and Client Secret from Google Cloud (OAuth client, redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`).
+- **Email:** the built-in sender is heavily rate-limited. Use custom SMTP (e.g. Resend) for real traffic.
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the dev server |
+| `npm run build` / `npm start` | Production build / serve |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript check |
+| `npm run codegen` | Regenerate `schema.graphql` and client GraphQL types (run after changing GraphQL types or queries) |
+| `npm run db:migrate` | Create/apply Prisma migrations |
+| `npm run db:studio` | Open Prisma Studio |
+| `npm run db:seed` | Seed sample data (wipes existing data; dev only) |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+prisma/              schema, migrations, seed
+src/app/             routes: (main) app pages, (auth) login/signup, onboarding, API routes
+src/components/      UI by feature (tweet, user, feed, messages, layout, auth, ui)
+src/graphql/         server schema (types/*), feed/timeline queries, notifications
+src/graphql/client/  client queries, mutations, Graphcache config
+src/hooks/           client hooks
+src/lib/             Prisma, Supabase clients, validation, uploads, rich text, embeds
+src/proxy.ts         session refresh and route protection
+```
 
-## Deploy on Vercel
+## Security
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Row Level Security is on for every table. The app reads and writes data only through the GraphQL API on the server, and the database's public Data API is locked.
+- Storage uploads are restricted to each user's own folder.
+- Realtime uses private channels, so only conversation participants and notification recipients receive events.
+- Usernames that clash with app routes (`explore`, `messages`, `settings`, …) are reserved.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deployment
+
+Push to `main` and Vercel builds and deploys. Set the same environment variables in **Vercel → Project → Settings → Environment Variables**. Apply new migrations against the production database with `npx prisma migrate deploy` before deploying code that depends on them.
