@@ -40,6 +40,7 @@ export const ConversationQuery = graphql(`
   query Conversation($id: ID!, $first: Int!) {
     conversation(id: $id) {
       id
+      isRequest
       otherParticipant {
         id
         username
@@ -106,6 +107,7 @@ export const PingSenderQuery = graphql(`
   query PingSender($id: ID!) {
     conversation(id: $id) {
       id
+      isRequest
       otherParticipant {
         id
         username
@@ -129,5 +131,70 @@ export const UnsendMessageMutation = graphql(`
 export const DeleteMessageForMeMutation = graphql(`
   mutation DeleteMessageForMe($id: ID!) {
     deleteMessageForMe(id: $id)
+  }
+`);
+
+/** Message requests, in the same shape as the inbox (so the same list renders them). */
+export const MessageRequestsQuery = graphql(`
+  query MessageRequests {
+    conversations: messageRequests {
+      id
+      updatedAt
+      unreadCount
+      otherParticipant {
+        id
+        username
+        displayName
+        avatarUrl
+      }
+      lastMessage {
+        id
+        content
+        mediaPaths
+        deletedAt
+        createdAt
+        senderId
+      }
+    }
+  }
+`);
+
+export const MessageRequestCountQuery = graphql(`
+  query MessageRequestCount {
+    messageRequestCount
+  }
+`);
+
+export const AcceptMessageRequestMutation = graphql(`
+  mutation AcceptMessageRequest($conversationId: ID!) {
+    acceptMessageRequest(conversationId: $conversationId) {
+      id
+      isRequest
+    }
+  }
+`);
+
+export const DeleteMessageRequestMutation = graphql(`
+  mutation DeleteMessageRequest($conversationId: ID!) {
+    deleteMessageRequest(conversationId: $conversationId)
+  }
+`);
+
+/** Settings → Privacy and safety → "Allow messages from". */
+export const DmPolicyQuery = graphql(`
+  query DmPolicy {
+    me {
+      id
+      dmPolicy
+    }
+  }
+`);
+
+export const SetDmPolicyMutation = graphql(`
+  mutation SetDmPolicy($policy: DmPolicy!) {
+    setDmPolicy(policy: $policy) {
+      id
+      dmPolicy
+    }
   }
 `);

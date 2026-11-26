@@ -131,8 +131,10 @@ export function Pinger() {
       )
       .toPromise();
     const sender = result.data?.conversation?.otherParticipant;
-    // Muted people's messages still arrive (and count as unread), silently.
+    // Muted people's messages still arrive (and count as unread), silently;
+    // message requests don't ping either.
     if (!sender || sender.viewerHasMuted) return;
+    if (result.data?.conversation?.isRequest) return;
     if (!claimPing(`m:${m.id}`)) return;
     playChirp();
     if (watching()) return;

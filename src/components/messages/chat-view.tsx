@@ -21,6 +21,7 @@ import { useLiveMessages } from "./realtime-provider";
 import { useTyping } from "./use-typing";
 import { MessageImages } from "./message-images";
 import { MessageActions } from "./message-actions";
+import { RequestBar } from "./request-bar";
 import { toast } from "sonner";
 import { IMAGE_TYPES } from "@/lib/storage";
 import {
@@ -493,6 +494,12 @@ export function ChatView({ conversationId }: { conversationId: string }) {
         <div ref={bottom} className="h-2" />
       </div>
 
+      {conversation.isRequest &&
+        other &&
+        !other.viewerHasBlocked &&
+        !other.blocksViewer && (
+          <RequestBar conversationId={conversationId} other={other} />
+        )}
       {other?.viewerHasBlocked || other?.blocksViewer ? (
         <p className="sticky bottom-14 z-10 border-t bg-background/95 px-4 py-4 text-center text-[15px] text-muted-foreground backdrop-blur-md sm:bottom-0">
           {other.viewerHasBlocked

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { badInput, notFound, requireUser } from "../auth";
 import type { Builder } from "../builder";
-import { assertNotWalled } from "../safety";
+import { assertNotWalled, isWalled } from "../safety";
 import { MESSAGE_MEDIA_BUCKET } from "@/lib/storage";
 
 /** Each pair of users shares one conversation, keyed by their sorted ids. */
@@ -16,17 +16,98 @@ const messageText = z
 /** Up to 4 images per message, like chirps. */
 const MAX_MESSAGE_IMAGES = 4;
 
+/** Chats that are message requests for `me` (not accepted, not deleted). */
+const requestsWhere = (me: string) => ({
+  participants: {
+    some: { userId: me, acceptedAt: null, requestHiddenAt: null },
+  },
+  NOT: {
+    participants: { some: { user: { deactivatedAt: { not: null } } } },
+  },
+  messages: { some: { deletedAt: null } },
+});
+
+/** Does `a` follow `b`? */
+async function follows(a: string, b: string) {
+  return (
+    (await prisma.follow.count({ where: { followerId: a, followingId: b } })) >
+    0
+  );
+}
+
+/**
+ * Throws unless `other`'s "Allow messages from" setting lets `me` write to
+ * them. A chat they've already accepted keeps working whatever the setting.
+ */
+async function assertCanMessage(
+  me: string,
+  other: string,
+  conversationId?: string,
+) {
+  if (conversationId) {
+    const theirs = await prisma.conversationParticipant.findUnique({
+      where: { conversationId_userId: { conversationId, userId: other } },
+      select: { acceptedAt: true },
+    });
+    if (theirs?.acceptedAt) return;
+  }
+  const target = await prisma.user.findUniqueOrThrow({
+    where: { id: other },
+    select: { username: true, dmPolicy: true },
+  });
+  if (target.dmPolicy === "NOBODY") {
+    throw badInput(`@${target.username} doesn't accept new messages.`);
+  }
+  if (target.dmPolicy === "FOLLOWING" && !(await follows(other, me))) {
+    throw badInput(
+      `@${target.username} only accepts messages from people they follow.`,
+    );
+  }
+}
+
 /** Throws unless the signed-in user is in this conversation. */
 async function requireParticipant(conversationId: string, userId: string) {
   const p = await prisma.conversationParticipant.findUnique({
     where: { conversationId_userId: { conversationId, userId } },
-    select: { lastReadAt: true },
+    select: { lastReadAt: true, acceptedAt: true },
   });
   if (!p) throw notFound("This conversation doesn't exist.");
   return p;
 }
 
 export function addMessageTypes(builder: Builder) {
+  const DmPolicy = builder.enumType("DmPolicy", {
+    values: ["EVERYONE", "FOLLOWING", "NOBODY"] as const,
+  });
+
+  builder.prismaObjectFields("User", (t) => ({
+    /** Your own "Allow messages from" setting (null on other people). */
+    dmPolicy: t.field({
+      type: DmPolicy,
+      nullable: true,
+      resolve: (user, _args, ctx) =>
+        user.id === ctx.userId ? user.dmPolicy : null,
+    }),
+    /** Can you message this person (their setting, blocks, existing chat)? */
+    canMessage: t.boolean({
+      resolve: async (user, _args, ctx) => {
+        const me = ctx.userId;
+        if (!me || me === user.id) return false;
+        if (await isWalled(me, user.id)) return false;
+        const chat = await prisma.conversation.findUnique({
+          where: { pairKey: pairKeyFor(me, user.id) },
+          select: { id: true },
+        });
+        try {
+          await assertCanMessage(me, user.id, chat?.id);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+    }),
+  }));
+
   builder.prismaObject("Message", {
     fields: (t) => ({
       id: t.exposeID("id"),
@@ -46,6 +127,12 @@ export function addMessageTypes(builder: Builder) {
     fields: (t) => ({
       id: t.exposeID("id"),
       updatedAt: t.expose("updatedAt", { type: "DateTime" }),
+      /** For you, this is a message request you haven't accepted yet. */
+      isRequest: t.boolean({
+        resolve: async (conversation, _args, ctx) =>
+          !(await requireParticipant(conversation.id, requireUser(ctx)))
+            .acceptedAt,
+      }),
       /** The person you're talking to. */
       otherParticipant: t.prismaField({
         type: "User",
@@ -112,7 +199,8 @@ export function addMessageTypes(builder: Builder) {
         return prisma.conversation.findMany({
           ...query,
           where: {
-            participants: { some: { userId: me } },
+            // Requests you haven't accepted live in messageRequests instead.
+            participants: { some: { userId: me, acceptedAt: { not: null } } },
             // Chats with a deactivated account are hidden until they return.
             NOT: {
               participants: {
@@ -125,6 +213,23 @@ export function addMessageTypes(builder: Builder) {
           take: 50,
         });
       },
+    }),
+    /** Chats from people you don't follow, waiting for you to accept. */
+    messageRequests: t.prismaField({
+      type: ["Conversation"],
+      resolve: (query, _root, _args, ctx) =>
+        prisma.conversation.findMany({
+          ...query,
+          where: requestsWhere(requireUser(ctx)),
+          orderBy: { updatedAt: "desc" },
+          take: 50,
+        }),
+    }),
+    messageRequestCount: t.int({
+      resolve: (_root, _args, ctx) =>
+        ctx.userId
+          ? prisma.conversation.count({ where: requestsWhere(ctx.userId) })
+          : 0,
     }),
     conversation: t.prismaField({
       type: "Conversation",
@@ -145,8 +250,9 @@ export function addMessageTypes(builder: Builder) {
     unreadMessageCount: t.int({
       resolve: async (_root, _args, ctx) => {
         if (!ctx.userId) return 0;
+        // Message requests don't count until you accept them.
         const mine = await prisma.conversationParticipant.findMany({
-          where: { userId: ctx.userId },
+          where: { userId: ctx.userId, acceptedAt: { not: null } },
           select: { conversationId: true, lastReadAt: true },
         });
         if (mine.length === 0) return 0;
@@ -180,19 +286,27 @@ export function addMessageTypes(builder: Builder) {
         });
         if (!exists) throw notFound("This account doesn't exist.");
         await assertNotWalled(me, other, "You can't message this account.");
-        return prisma.conversation.upsert({
+        // An existing chat always opens.
+        const existing = await prisma.conversation.findUnique({
           ...query,
           where: { pairKey: pairKeyFor(me, other) },
-          create: {
+        });
+        if (existing) return existing;
+        await assertCanMessage(me, other);
+        const now = new Date();
+        // It's a request for them unless they follow you.
+        const theyFollowYou = await follows(other, me);
+        return prisma.conversation.create({
+          ...query,
+          data: {
             pairKey: pairKeyFor(me, other),
             participants: {
               create: [
-                { userId: me, lastReadAt: new Date() },
-                { userId: other },
+                { userId: me, lastReadAt: now, acceptedAt: now },
+                { userId: other, acceptedAt: theyFollowYou ? now : null },
               ],
             },
           },
-          update: {},
         });
       },
     }),
@@ -207,11 +321,11 @@ export function addMessageTypes(builder: Builder) {
       resolve: async (query, _root, args, ctx) => {
         const me = requireUser(ctx);
         const conversationId = String(args.conversationId);
-        await requireParticipant(conversationId, me);
+        const mine = await requireParticipant(conversationId, me);
         // No messages across a block (the conversation stays readable).
         const other = await prisma.conversationParticipant.findFirst({
           where: { conversationId, userId: { not: me } },
-          select: { userId: true },
+          select: { userId: true, acceptedAt: true },
         });
         await assertNotWalled(
           me,
@@ -241,6 +355,28 @@ export function addMessageTypes(builder: Builder) {
           throw badInput("A message can't be empty.");
         }
 
+        // They haven't accepted this chat yet: it's a request for them.
+        let acceptForThem = false;
+        if (other && !other.acceptedAt) {
+          if (await follows(other.userId, me)) {
+            acceptForThem = true; // they follow you now: no request needed
+          } else {
+            await assertCanMessage(me, other.userId, conversationId);
+            const sent = await prisma.message.count({
+              where: { conversationId, senderId: me },
+            });
+            if (sent > 0) {
+              const { username } = await prisma.user.findUniqueOrThrow({
+                where: { id: other.userId },
+                select: { username: true },
+              });
+              throw badInput(
+                `You can send more once @${username} accepts your message request.`,
+              );
+            }
+          }
+        }
+
         const now = new Date();
         // The insert is what Supabase Realtime streams to both participants.
         const [message] = await prisma.$transaction([
@@ -258,10 +394,30 @@ export function addMessageTypes(builder: Builder) {
             where: { id: conversationId },
             data: { updatedAt: now },
           }),
+          // Replying to a request accepts it.
           prisma.conversationParticipant.update({
             where: { conversationId_userId: { conversationId, userId: me } },
-            data: { lastReadAt: now },
+            data: {
+              lastReadAt: now,
+              ...(!mine.acceptedAt && {
+                acceptedAt: now,
+                requestHiddenAt: null,
+              }),
+            },
           }),
+          ...(acceptForThem && other
+            ? [
+                prisma.conversationParticipant.update({
+                  where: {
+                    conversationId_userId: {
+                      conversationId,
+                      userId: other.userId,
+                    },
+                  },
+                  data: { acceptedAt: now },
+                }),
+              ]
+            : []),
         ]);
         return message;
       },
@@ -322,6 +478,50 @@ export function addMessageTypes(builder: Builder) {
         });
         return messageId;
       },
+    }),
+    /** Accept a message request: the chat moves to your inbox. */
+    acceptMessageRequest: t.prismaField({
+      type: "Conversation",
+      args: { conversationId: t.arg.id({ required: true }) },
+      resolve: async (query, _root, args, ctx) => {
+        const me = requireUser(ctx);
+        const conversationId = String(args.conversationId);
+        await requireParticipant(conversationId, me);
+        await prisma.conversationParticipant.update({
+          where: { conversationId_userId: { conversationId, userId: me } },
+          data: { acceptedAt: new Date(), requestHiddenAt: null },
+        });
+        return prisma.conversation.findUniqueOrThrow({
+          ...query,
+          where: { id: conversationId },
+        });
+      },
+    }),
+    /** Delete a message request: it's hidden from your requests. */
+    deleteMessageRequest: t.id({
+      args: { conversationId: t.arg.id({ required: true }) },
+      resolve: async (_root, args, ctx) => {
+        const me = requireUser(ctx);
+        const conversationId = String(args.conversationId);
+        const mine = await requireParticipant(conversationId, me);
+        if (mine.acceptedAt) throw badInput("This isn't a message request.");
+        await prisma.conversationParticipant.update({
+          where: { conversationId_userId: { conversationId, userId: me } },
+          data: { requestHiddenAt: new Date() },
+        });
+        return conversationId;
+      },
+    }),
+    /** Settings → Privacy and safety → "Allow messages from". */
+    setDmPolicy: t.prismaField({
+      type: "User",
+      args: { policy: t.arg({ type: DmPolicy, required: true }) },
+      resolve: (query, _root, args, ctx) =>
+        prisma.user.update({
+          ...query,
+          where: { id: requireUser(ctx) },
+          data: { dmPolicy: args.policy },
+        }),
     }),
     markConversationRead: t.prismaField({
       type: "Conversation",

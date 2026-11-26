@@ -85,10 +85,12 @@ export function ProfileHeader({
                   <BlockedButton user={user} />
                 ) : user.blocksViewer ? null : (
                   <>
-                    <MessageButton
-                      userId={user.id}
-                      displayName={user.displayName}
-                    />
+                    {user.canMessage && (
+                      <MessageButton
+                        userId={user.id}
+                        displayName={user.displayName}
+                      />
+                    )}
                     <FollowButton
                       userId={user.id}
                       displayName={user.displayName}

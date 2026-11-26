@@ -196,7 +196,15 @@ export const graphcache = cacheExchange({
         invalidateFields(cache, "Query", [
           "conversations",
           "unreadMessageCount",
+          // Replying to a request accepts it.
+          "messageRequests",
+          "messageRequestCount",
         ]);
+        invalidateFields(
+          cache,
+          { __typename: "Conversation", id: String(args.conversationId) },
+          ["isRequest"],
+        );
         invalidateFields(
           cache,
           { __typename: "Conversation", id: String(args.conversationId) },
@@ -221,6 +229,20 @@ export const graphcache = cacheExchange({
         invalidateFields(cache, "Query", [
           "conversations",
           "unreadMessageCount",
+        ]);
+      },
+      acceptMessageRequest(_result, _args, cache) {
+        invalidateFields(cache, "Query", [
+          "conversations",
+          "messageRequests",
+          "messageRequestCount",
+          "unreadMessageCount",
+        ]);
+      },
+      deleteMessageRequest(_result, _args, cache) {
+        invalidateFields(cache, "Query", [
+          "messageRequests",
+          "messageRequestCount",
         ]);
       },
       markNotificationsRead(_result, _args, cache) {

@@ -30,6 +30,8 @@ model User {
   /// The chirp shown at the top of this user's profile (cleared if deleted).
   pinnedTweetId       String?   @unique
   pinnedTweet         Tweet?    @relation("pinned", fields: [pinnedTweetId], references: [id], onDelete: SetNull)
+  /// Who may start a chat with this user (Settings → Privacy and safety).
+  dmPolicy            DmPolicy  @default(EVERYONE)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -153,10 +155,15 @@ model Conversation {
 }
 
 model ConversationParticipant {
-  conversationId String
-  userId         String    @db.Uuid
+  conversationId  String
+  userId          String    @db.Uuid
   /// Messages after this are unread for this participant.
-  lastReadAt     DateTime?
+  lastReadAt      DateTime?
+  /// When this participant accepted the chat. Null = it's a message request
+  /// for them (someone they don't follow wrote first).
+  acceptedAt      DateTime?
+  /// They deleted the request: it's hidden from their inbox and requests.
+  requestHiddenAt DateTime?
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -305,4 +312,14 @@ model HiddenMessage {
 
   @@id([userId, messageId])
   @@index([messageId])
+}
+
+/// Who may start a chat with someone.
+enum DmPolicy {
+  /// Anyone; people they don't follow land in Message requests.
+  EVERYONE
+  /// Only people they follow.
+  FOLLOWING
+  /// Nobody new (chats they already accepted keep working).
+  NOBODY
 }

@@ -16,6 +16,7 @@ export const ProfileFieldsFragment = graphql(`
     viewerHasBlocked
     viewerHasMuted
     blocksViewer
+    canMessage
   }
 `);
 

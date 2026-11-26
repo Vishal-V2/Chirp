@@ -5,6 +5,7 @@ type Bookmark {
 
 type Conversation {
   id: ID!
+  isRequest: Boolean!
   lastMessage: Message
   messages(after: String, before: String, first: Int, last: Int): ConversationMessagesConnection!
   otherParticipant: User!
@@ -26,6 +27,12 @@ type ConversationMessagesConnectionEdge {
 A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
 """
 scalar DateTime
+
+enum DmPolicy {
+  EVERYONE
+  FOLLOWING
+  NOBODY
+}
 
 type Follow {
   createdAt: DateTime!
@@ -50,11 +57,13 @@ type Message {
 }
 
 type Mutation {
+  acceptMessageRequest(conversationId: ID!): Conversation!
   block(userId: ID!): User!
   bookmarkTweet(id: ID!): Tweet!
   createThread(parts: [ThreadPartInput!]!): Tweet!
   createTweet(content: String!, location: String, mediaUrls: [String!], parentId: ID, poll: PollInput, quotedId: ID): Tweet!
   deleteMessageForMe(id: ID!): ID!
+  deleteMessageRequest(conversationId: ID!): ID!
   deleteTweet(id: ID!): Boolean!
   follow(userId: ID!): User!
   likeTweet(id: ID!): Tweet!
@@ -64,6 +73,7 @@ type Mutation {
   pinTweet(id: ID!): [Tweet!]!
   retweet(id: ID!): Tweet!
   sendMessage(content: String!, conversationId: ID!, mediaPaths: [String!]): Message!
+  setDmPolicy(policy: DmPolicy!): User!
   startConversation(userId: ID!): Conversation!
   unblock(userId: ID!): User!
   unbookmarkTweet(id: ID!): Tweet!
@@ -133,6 +143,8 @@ type Query {
   homeFeed(after: String, before: String, first: Int, last: Int): QueryHomeFeedConnection!
   likedTweets(after: String, before: String, first: Int, last: Int): QueryLikedTweetsConnection!
   me: User
+  messageRequestCount: Int!
+  messageRequests: [Conversation!]!
   mutedAccounts: [User!]!
   notifications(after: String, before: String, first: Int, last: Int): QueryNotificationsConnection!
   popularTweets(after: String, before: String, first: Int, last: Int): QueryPopularTweetsConnection!
@@ -298,8 +310,10 @@ type User {
   bannerUrl: String
   bio: String
   blocksViewer: Boolean!
+  canMessage: Boolean!
   createdAt: DateTime!
   displayName: String!
+  dmPolicy: DmPolicy
   followerCount: Int!
   followers(after: String, before: String, first: Int, last: Int): UserFollowersConnection!
   following(after: String, before: String, first: Int, last: Int): UserFollowingConnection!
