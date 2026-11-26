@@ -43,6 +43,7 @@ type Message {
   conversationId: ID!
   createdAt: DateTime!
   id: ID!
+  mediaPaths: [String!]!
   sender: User!
   senderId: ID!
 }
@@ -60,7 +61,7 @@ type Mutation {
   mute(userId: ID!): User!
   pinTweet(id: ID!): [Tweet!]!
   retweet(id: ID!): Tweet!
-  sendMessage(content: String!, conversationId: ID!): Message!
+  sendMessage(content: String!, conversationId: ID!, mediaPaths: [String!]): Message!
   startConversation(userId: ID!): Conversation!
   unblock(userId: ID!): User!
   unbookmarkTweet(id: ID!): Tweet!

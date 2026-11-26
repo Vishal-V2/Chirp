@@ -132,7 +132,7 @@ export function InboxView() {
                         )}
                       >
                         {last
-                          ? `${last.senderId === viewer?.id ? "You: " : ""}${last.content}`
+                          ? `${last.senderId === viewer?.id ? "You: " : ""}${last.content || (last.mediaPaths.length > 1 ? "📷 Photos" : "📷 Photo")}`
                           : ""}
                       </p>
                       {unread && (

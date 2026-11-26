@@ -167,6 +167,9 @@ model ConversationParticipant {
 model Message {
   id             String   @id @default(cuid())
   content        String   @db.VarChar(1000)
+  /// Private images: paths in the "message-media" bucket, as
+  /// "<conversationId>/<senderId>/<file>". Only the chat's participants can open them.
+  mediaPaths     String[] @default([])
   createdAt      DateTime @default(now())
   conversationId String
   senderId       String   @db.Uuid

@@ -137,7 +137,11 @@ export function Pinger() {
     if (watching()) return;
     await showPopup({
       title: sender.displayName,
-      body: snippet(m.content),
+      body: m.content
+        ? snippet(m.content)
+        : m.mediaPaths?.length > 1
+          ? "Sent photos"
+          : "Sent a photo",
       url: `/messages/${m.conversationId}`,
       tag: `m:${m.conversationId}`,
     });

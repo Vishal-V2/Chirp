@@ -10,8 +10,10 @@ const pairKeyFor = (a: string, b: string) => [a, b].sort().join(":");
 const messageText = z
   .string()
   .trim()
-  .min(1, "A message can't be empty.")
   .max(1000, "Messages can be up to 1000 characters.");
+
+/** Up to 4 images per message, like chirps. */
+const MAX_MESSAGE_IMAGES = 4;
 
 /** Throws unless the signed-in user is in this conversation. */
 async function requireParticipant(conversationId: string, userId: string) {
@@ -28,6 +30,8 @@ export function addMessageTypes(builder: Builder) {
     fields: (t) => ({
       id: t.exposeID("id"),
       content: t.exposeString("content"),
+      /** Private image paths; the app opens them with short-lived signed links. */
+      mediaPaths: t.exposeStringList("mediaPaths"),
       createdAt: t.expose("createdAt", { type: "DateTime" }),
       conversationId: t.exposeID("conversationId"),
       senderId: t.exposeID("senderId"),
@@ -183,6 +187,8 @@ export function addMessageTypes(builder: Builder) {
       args: {
         conversationId: t.arg.id({ required: true }),
         content: t.arg.string({ required: true }),
+        /** Images already uploaded to message-media/<conversationId>/<you>/. */
+        mediaPaths: t.arg.stringList(),
       },
       resolve: async (query, _root, args, ctx) => {
         const me = requireUser(ctx);
@@ -200,6 +206,26 @@ export function addMessageTypes(builder: Builder) {
         );
         const parsed = messageText.safeParse(args.content);
         if (!parsed.success) throw badInput(parsed.error.issues[0].message);
+        const mediaPaths = args.mediaPaths ?? [];
+        if (mediaPaths.length > MAX_MESSAGE_IMAGES) {
+          throw badInput(
+            `A message can have up to ${MAX_MESSAGE_IMAGES} images.`,
+          );
+        }
+        // Only your own uploads, in this chat's folder (no "..", nothing else).
+        const ownFolder = `${conversationId}/${me}/`;
+        if (
+          mediaPaths.some(
+            (p) =>
+              !p.startsWith(ownFolder) ||
+              !/^[A-Za-z0-9._-]+$/.test(p.slice(ownFolder.length)),
+          )
+        ) {
+          throw badInput("Images must be uploaded through Chirp.");
+        }
+        if (!parsed.data && mediaPaths.length === 0) {
+          throw badInput("A message can't be empty.");
+        }
 
         const now = new Date();
         // The insert is what Supabase Realtime streams to both participants.
@@ -210,6 +236,7 @@ export function addMessageTypes(builder: Builder) {
               conversationId,
               senderId: me,
               content: parsed.data,
+              mediaPaths,
               createdAt: now,
             },
           }),

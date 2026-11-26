@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { RotateCcw, SendHorizontal } from "lucide-react";
+import { Image as ImageIcon, RotateCcw, SendHorizontal, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMutation, useQuery } from "urql";
 import { BackButton } from "@/components/layout/back-button";
@@ -17,12 +17,28 @@ import {
 import { cn } from "@/lib/utils";
 import { useLiveMessages } from "./realtime-provider";
 import { useTyping } from "./use-typing";
+import { MessageImages } from "./message-images";
+import { IMAGE_TYPES } from "@/lib/storage";
+import {
+  checkImage,
+  deleteMessageImages,
+  uploadMessageImage,
+} from "@/lib/upload";
 
 const PAGE = 50;
 const MAX = 1000;
 const GROUP_GAP_MS = 5 * 60 * 1000;
 
-type ChatMessage = MessageFieldsFragment & { status?: "sending" | "failed" };
+type ChatMessage = MessageFieldsFragment & {
+  status?: "sending" | "failed";
+  /** While sending: local previews of the images, and the files (for retry). */
+  previews?: string[];
+  files?: File[];
+};
+
+/** Up to 4 images per message (matches the server). */
+const MAX_IMAGES = 4;
+type Attachment = { id: string; file: File; preview: string };
 
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString("en", {
@@ -94,6 +110,9 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   // Messages that arrived live or that you sent, until the next refetch includes them.
   const [extra, setExtra] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attachError, setAttachError] = useState<string>();
+  const fileInput = useRef<HTMLInputElement>(null);
   const conversation = data?.conversation;
   const other = conversation?.otherParticipant;
 
@@ -149,9 +168,40 @@ export function ChatView({ conversationId }: { conversationId: string }) {
     }
   }, [messages.length, otherTyping]);
 
-  async function deliver(content: string, tempId: string) {
-    const result = await send({ conversationId, content });
-    const saved = result.data?.sendMessage;
+  function addFiles(files: Iterable<File>) {
+    const picked = [...files].filter((f) => f.type.startsWith("image/"));
+    if (picked.length === 0) return;
+    const problem = picked.map(checkImage).find(Boolean);
+    if (problem) return setAttachError(problem);
+    const room = MAX_IMAGES - attachments.length;
+    setAttachError(
+      picked.length > room
+        ? `You can send up to ${MAX_IMAGES} images at once.`
+        : undefined,
+    );
+    setAttachments((list) => [
+      ...list,
+      ...picked.slice(0, room).map((file) => ({
+        id: crypto.randomUUID(),
+        file,
+        preview: URL.createObjectURL(file),
+      })),
+    ]);
+  }
+
+  async function deliver(content: string, files: File[], tempId: string) {
+    let mediaPaths: string[] = [];
+    let saved: ChatMessage | undefined;
+    try {
+      mediaPaths = await Promise.all(
+        files.map((f) => uploadMessageImage(conversationId, viewer.id, f)),
+      );
+      const result = await send({ conversationId, content, mediaPaths });
+      saved = result.data?.sendMessage ?? undefined;
+    } catch {
+      saved = undefined;
+    }
+    if (!saved) void deleteMessageImages(mediaPaths);
     setExtra((list) =>
       saved
         ? [...list.filter((m) => m.id !== tempId && m.id !== saved.id), saved]
@@ -163,7 +213,9 @@ export function ChatView({ conversationId }: { conversationId: string }) {
 
   function submit() {
     const content = text.trim();
-    if (!content || content.length > MAX) return;
+    if ((!content && attachments.length === 0) || content.length > MAX) return;
+    const files = attachments.map((a) => a.file);
+    const previews = attachments.map((a) => a.preview);
     const tempId = `temp-${crypto.randomUUID()}`;
     // Show it immediately; it's swapped for the saved message when the server answers.
     setExtra((list) => [
@@ -172,6 +224,9 @@ export function ChatView({ conversationId }: { conversationId: string }) {
         __typename: "Message",
         id: tempId,
         content,
+        mediaPaths: [],
+        previews,
+        files,
         createdAt: new Date().toISOString(),
         conversationId,
         senderId: viewer.id,
@@ -179,16 +234,18 @@ export function ChatView({ conversationId }: { conversationId: string }) {
       },
     ]);
     setText("");
+    setAttachments([]);
+    setAttachError(undefined);
     stuckToBottom.current = true;
     notifyStopped();
-    void deliver(content, tempId);
+    void deliver(content, files, tempId);
   }
 
   function retry(m: ChatMessage) {
     setExtra((list) =>
       list.map((x) => (x.id === m.id ? { ...x, status: "sending" } : x)),
     );
-    void deliver(m.content, m.id);
+    void deliver(m.content, m.files ?? [], m.id);
   }
 
   if (!conversation) {
@@ -299,20 +356,38 @@ export function ChatView({ conversationId }: { conversationId: string }) {
                     sameAsPrev ? "pt-0.5" : "pt-2",
                   )}
                 >
-                  <p
+                  <div
                     className={cn(
-                      "max-w-[78%] rounded-3xl px-4 py-2.5 text-[15px] leading-snug break-words whitespace-pre-wrap",
-                      mine
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-foreground",
-                      lastInGroup && (mine ? "rounded-br-md" : "rounded-bl-md"),
-                      m.status === "sending" && "opacity-70",
-                      m.status === "failed" &&
-                        "bg-destructive/15 text-destructive",
+                      "flex max-w-full flex-col gap-1",
+                      mine ? "items-end" : "items-start",
                     )}
                   >
-                    {m.content}
-                  </p>
+                    {m.previews?.length || m.mediaPaths?.length ? (
+                      <MessageImages
+                        paths={m.mediaPaths}
+                        previews={m.previews}
+                        mine={mine}
+                        dimmed={m.status === "sending"}
+                      />
+                    ) : null}
+                    {m.content && (
+                      <p
+                        className={cn(
+                          "max-w-[78%] rounded-3xl px-4 py-2.5 text-[15px] leading-snug break-words whitespace-pre-wrap",
+                          mine
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-foreground",
+                          lastInGroup &&
+                            (mine ? "rounded-br-md" : "rounded-bl-md"),
+                          m.status === "sending" && "opacity-70",
+                          m.status === "failed" &&
+                            "bg-destructive/15 text-destructive",
+                        )}
+                      >
+                        {m.content}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 {m.status === "failed" ? (
                   <button
@@ -359,41 +434,110 @@ export function ChatView({ conversationId }: { conversationId: string }) {
             e.preventDefault();
             submit();
           }}
-          className="sticky bottom-14 z-10 flex items-end gap-2 border-t bg-background/95 px-3 py-2.5 backdrop-blur-md sm:bottom-0"
+          className="sticky bottom-14 z-10 border-t bg-background/95 px-3 py-2.5 backdrop-blur-md sm:bottom-0"
         >
-          <textarea
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              if (e.target.value.trim()) notifyTyping();
-              else notifyStopped();
-            }}
-            onKeyDown={(e) => {
-              // Enter sends; Shift+Enter adds a new line.
-              if (
-                e.key === "Enter" &&
-                !e.shiftKey &&
-                !e.nativeEvent.isComposing
-              ) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-            placeholder="Write a message"
-            aria-label="Write a message"
-            rows={1}
-            maxLength={MAX}
-            className="field-sizing-content max-h-40 min-h-10 flex-1 resize-none rounded-3xl bg-muted px-4 py-2.5 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-primary"
-          />
-          <motion.button
-            type="submit"
-            aria-label="Send"
-            disabled={!text.trim()}
-            whileTap={{ scale: 0.88 }}
-            className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity disabled:opacity-40"
-          >
-            <SendHorizontal className="size-4" />
-          </motion.button>
+          {attachments.length > 0 && (
+            <ul
+              className="mb-2 flex gap-2 overflow-x-auto"
+              aria-label="Images to send"
+            >
+              {attachments.map((a, i) => (
+                <li
+                  key={a.id}
+                  className="relative size-20 shrink-0 overflow-hidden rounded-xl border bg-muted"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={a.preview}
+                    alt={`Image ${i + 1} to send`}
+                    className="size-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Remove image ${i + 1}`}
+                    onClick={() => {
+                      URL.revokeObjectURL(a.preview);
+                      setAttachments((list) =>
+                        list.filter((x) => x.id !== a.id),
+                      );
+                    }}
+                    className="pressable absolute top-1 right-1 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {attachError && (
+            <p role="alert" className="mb-2 text-sm text-destructive">
+              {attachError}
+            </p>
+          )}
+          <div className="flex items-end gap-2">
+            <input
+              ref={fileInput}
+              type="file"
+              accept={IMAGE_TYPES.join(",")}
+              multiple
+              hidden
+              onChange={(e) => {
+                if (e.target.files) addFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              aria-label="Add images"
+              title="Add images"
+              disabled={attachments.length >= MAX_IMAGES}
+              onClick={() => fileInput.current?.click()}
+              className="pressable mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full text-primary hover:bg-primary/10 disabled:opacity-40"
+            >
+              <ImageIcon className="size-5" />
+            </button>
+            <textarea
+              value={text}
+              onChange={(e) => {
+                setText(e.target.value);
+                if (e.target.value.trim()) notifyTyping();
+                else notifyStopped();
+              }}
+              onKeyDown={(e) => {
+                // Enter sends; Shift+Enter adds a new line.
+                if (
+                  e.key === "Enter" &&
+                  !e.shiftKey &&
+                  !e.nativeEvent.isComposing
+                ) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+              onPaste={(e) => {
+                // Pasting an image attaches it.
+                const files = [...e.clipboardData.files];
+                if (files.some((f) => f.type.startsWith("image/"))) {
+                  e.preventDefault();
+                  addFiles(files);
+                }
+              }}
+              placeholder="Write a message"
+              aria-label="Write a message"
+              rows={1}
+              maxLength={MAX}
+              className="field-sizing-content max-h-40 min-h-10 flex-1 resize-none rounded-3xl bg-muted px-4 py-2.5 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-primary"
+            />
+            <motion.button
+              type="submit"
+              aria-label="Send"
+              disabled={!text.trim() && attachments.length === 0}
+              whileTap={{ scale: 0.88 }}
+              className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity disabled:opacity-40"
+            >
+              <SendHorizontal className="size-4" />
+            </motion.button>
+          </div>
         </form>
       )}
     </div>

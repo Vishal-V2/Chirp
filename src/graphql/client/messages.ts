@@ -4,6 +4,7 @@ export const MessageFieldsFragment = graphql(`
   fragment MessageFields on Message {
     id
     content
+    mediaPaths
     createdAt
     conversationId
     senderId
@@ -25,6 +26,7 @@ export const ConversationsQuery = graphql(`
       lastMessage {
         id
         content
+        mediaPaths
         createdAt
         senderId
       }
@@ -73,8 +75,16 @@ export const StartConversationMutation = graphql(`
 `);
 
 export const SendMessageMutation = graphql(`
-  mutation SendMessage($conversationId: ID!, $content: String!) {
-    sendMessage(conversationId: $conversationId, content: $content) {
+  mutation SendMessage(
+    $conversationId: ID!
+    $content: String!
+    $mediaPaths: [String!]
+  ) {
+    sendMessage(
+      conversationId: $conversationId
+      content: $content
+      mediaPaths: $mediaPaths
+    ) {
       ...MessageFields
     }
   }

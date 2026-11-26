@@ -3,6 +3,7 @@ import {
   CHIRP_MEDIA_BUCKET,
   IMAGE_TYPES,
   MAX_IMAGE_BYTES,
+  MESSAGE_MEDIA_BUCKET,
   PROFILE_IMAGES_BUCKET,
 } from "@/lib/storage";
 
@@ -103,6 +104,45 @@ export async function uploadChirpImage(userId: string, file: File) {
     );
   } catch (e) {
     throw new Error(`Couldn't upload an image: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Uploads an image for a message into the private message-media bucket and
+ * returns its path (not a URL: the file is only readable by the chat's
+ * participants, through short-lived signed links).
+ */
+export async function uploadMessageImage(
+  conversationId: string,
+  userId: string,
+  file: File,
+): Promise<string> {
+  const prepared = await prepareImage(file);
+  const path = `${conversationId}/${userId}/${uniqueName()}.${extension(prepared)}`;
+  const { error } = await createClient()
+    .storage.from(MESSAGE_MEDIA_BUCKET)
+    .upload(path, prepared, {
+      contentType: prepared.type,
+      cacheControl: "3600",
+      upsert: false,
+    });
+  if (error) {
+    throw new Error(
+      /row-level security|unauthorized|jwt/i.test(error.message)
+        ? "your session has expired. Log in again and retry."
+        : `Couldn't upload an image: ${error.message}`,
+    );
+  }
+  return path;
+}
+
+/** Removes message images you uploaded (best effort, e.g. after a failed send). */
+export async function deleteMessageImages(paths: string[]) {
+  if (paths.length === 0) return;
+  try {
+    await createClient().storage.from(MESSAGE_MEDIA_BUCKET).remove(paths);
+  } catch {
+    /* leftover files are harmless; they're only visible to the chat */
   }
 }
 

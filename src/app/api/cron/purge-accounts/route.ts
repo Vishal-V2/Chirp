@@ -1,8 +1,32 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { CHIRP_MEDIA_BUCKET, PROFILE_IMAGES_BUCKET } from "@/lib/storage";
+import {
+  CHIRP_MEDIA_BUCKET,
+  MESSAGE_MEDIA_BUCKET,
+  PROFILE_IMAGES_BUCKET,
+} from "@/lib/storage";
 import { DELETE_AFTER_DAYS } from "@/lib/account-deletion";
+
+/** Deletes every file directly inside `folder` of `bucket`. */
+async function removeFolder(
+  admin: ReturnType<typeof createAdminClient>,
+  bucket: string,
+  folder: string,
+) {
+  for (;;) {
+    const { data, error } = await admin.storage
+      .from(bucket)
+      .list(folder, { limit: 100 });
+    if (error) throw error;
+    if (!data?.length) return;
+    const { error: removeError } = await admin.storage
+      .from(bucket)
+      .remove(data.map((f) => `${folder}/${f.name}`));
+    if (removeError) throw removeError;
+    if (data.length < 100) return;
+  }
+}
 
 /**
  * Daily job (Vercel Cron, see vercel.json): permanently deletes accounts that
@@ -30,23 +54,30 @@ export async function GET(request: NextRequest) {
     try {
       // 1. Their photos (each person's files live in their own folder).
       for (const bucket of [PROFILE_IMAGES_BUCKET, CHIRP_MEDIA_BUCKET]) {
-        for (;;) {
-          const { data, error } = await admin.storage
-            .from(bucket)
-            .list(id, { limit: 100 });
-          if (error) throw error;
-          if (!data?.length) break;
-          const { error: removeError } = await admin.storage
-            .from(bucket)
-            .remove(data.map((f) => `${id}/${f.name}`));
-          if (removeError) throw removeError;
-          if (data.length < 100) break;
-        }
+        await removeFolder(admin, bucket, id);
       }
       // 2. Whole conversations with them (the other person's side too, so
-      //    nobody is left with a chat that has no one on the other end).
-      await prisma.conversation.deleteMany({
+      //    nobody is left with a chat that has no one on the other end),
+      //    including every photo sent in them.
+      const chats = await prisma.conversation.findMany({
         where: { participants: { some: { userId: id } } },
+        select: { id: true },
+      });
+      for (const chat of chats) {
+        const { data: senders, error } = await admin.storage
+          .from(MESSAGE_MEDIA_BUCKET)
+          .list(chat.id, { limit: 100 });
+        if (error) throw error;
+        for (const sender of senders ?? []) {
+          await removeFolder(
+            admin,
+            MESSAGE_MEDIA_BUCKET,
+            `${chat.id}/${sender.name}`,
+          );
+        }
+      }
+      await prisma.conversation.deleteMany({
+        where: { id: { in: chats.map((c) => c.id) } },
       });
       // 3. Their login. A database trigger then deletes their profile, which
       //    removes their chirps, likes, follows, notifications and the rest.

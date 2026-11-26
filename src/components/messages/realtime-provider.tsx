@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 export type LiveMessage = {
   id: string;
   content: string;
+  /** Private image paths (see src/lib/message-media.ts). */
+  mediaPaths: string[];
   createdAt: string;
   conversationId: string;
   senderId: string;
