@@ -8,7 +8,10 @@ import { MotionConfig } from "motion/react";
  */
 export function MotionProvider({ children }: { children: React.ReactNode }) {
   return (
-    <MotionConfig reducedMotion="user" transition={{ type: "spring", stiffness: 500, damping: 35 }}>
+    <MotionConfig
+      reducedMotion="user"
+      transition={{ type: "spring", stiffness: 500, damping: 35 }}
+    >
       {children}
     </MotionConfig>
   );

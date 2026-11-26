@@ -17,17 +17,17 @@ A Twitter/X-style social app: short posts ("chirps"), follows, likes, reposts, q
 
 ## Tech stack
 
-| Area | Choice |
-|---|---|
-| Framework | Next.js 16 (App Router, Turbopack), React 19, TypeScript |
-| API | GraphQL: GraphQL Yoga + Pothos (Prisma and Relay plugins) at `/api/graphql` |
-| Client data | urql + Graphcache (normalized cache, optimistic updates), GraphQL Codegen |
-| Database | PostgreSQL on Supabase, Prisma 7 ORM with `@prisma/adapter-pg` |
-| Auth | Supabase Auth (email/password + Google OAuth) via `@supabase/ssr` |
-| Storage | Supabase Storage (`profile-images`, `chirp-media`) |
-| Realtime | Supabase Realtime (private channels) |
-| Styling | Tailwind CSS 4, shadcn/ui, Motion |
-| Hosting | Vercel (region `hnd1`) |
+| Area        | Choice                                                                      |
+| ----------- | --------------------------------------------------------------------------- |
+| Framework   | Next.js 16 (App Router, Turbopack), React 19, TypeScript                    |
+| API         | GraphQL: GraphQL Yoga + Pothos (Prisma and Relay plugins) at `/api/graphql` |
+| Client data | urql + Graphcache (normalized cache, optimistic updates), GraphQL Codegen   |
+| Database    | PostgreSQL on Supabase, Prisma 7 ORM with `@prisma/adapter-pg`              |
+| Auth        | Supabase Auth (email/password + Google OAuth) via `@supabase/ssr`           |
+| Storage     | Supabase Storage (`profile-images`, `chirp-media`)                          |
+| Realtime    | Supabase Realtime (private channels)                                        |
+| Styling     | Tailwind CSS 4, shadcn/ui, Motion                                           |
+| Hosting     | Vercel (region `hnd1`)                                                      |
 
 ## Getting started
 
@@ -48,12 +48,12 @@ npm install
 
 Copy `.env.example` to `.env` and fill it in from Supabase (**Project Settings → Database / API**):
 
-| Variable | Used for |
-|---|---|
-| `DATABASE_URL` | App runtime: transaction pooler (port 6543, `?pgbouncer=true`) |
-| `DIRECT_URL` | Migrations: session pooler / direct connection (port 5432) |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable (anon) key |
+| Variable                               | Used for                                                       |
+| -------------------------------------- | -------------------------------------------------------------- |
+| `DATABASE_URL`                         | App runtime: transaction pooler (port 6543, `?pgbouncer=true`) |
+| `DIRECT_URL`                           | Migrations: session pooler / direct connection (port 5432)     |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Supabase project URL                                           |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable (anon) key                                |
 
 Never commit `.env`.
 
@@ -82,27 +82,29 @@ Open http://localhost:3000.
 
 ## Scripts
 
-| Command | What it does |
-|---|---|
-| `npm run dev` | Start the dev server |
-| `npm run build` / `npm start` | Production build / serve |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | TypeScript check |
-| `npm run codegen` | Regenerate `schema.graphql` and client GraphQL types (run after changing GraphQL types or queries) |
-| `npm run db:migrate` | Create/apply Prisma migrations |
-| `npm run db:studio` | Open Prisma Studio |
-| `npm run db:seed` | Seed sample data (wipes existing data; dev only) |
+| Command                                   | What it does                                                                                       |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `npm run dev`                             | Start the dev server                                                                               |
+| `npm run build` / `npm start`             | Production build / serve                                                                           |
+| `npm run lint`                            | ESLint                                                                                             |
+| `npm run format` / `npm run format:check` | Format with Prettier / check formatting                                                            |
+| `npm run typecheck`                       | TypeScript check                                                                                   |
+| `npm run codegen`                         | Regenerate `schema.graphql` and client GraphQL types (run after changing GraphQL types or queries) |
+| `npm run db:migrate`                      | Create/apply Prisma migrations                                                                     |
+| `npm run db:studio`                       | Open Prisma Studio                                                                                 |
+| `npm run db:seed`                         | Seed sample data (wipes existing data; dev only)                                                   |
 
 ## Project structure
 
 ```
 prisma/              schema, migrations, seed
 src/app/             routes: (main) app pages, (auth) login/signup, onboarding, API routes
-src/components/      UI by feature (tweet, user, feed, messages, layout, auth, ui)
+src/components/      UI by feature (tweet, user, feed, messages, layout, auth, providers, ui)
 src/graphql/         server schema (types/*), feed/timeline queries, notifications
 src/graphql/client/  client queries, mutations, Graphcache config
 src/hooks/           client hooks
 src/lib/             Prisma, Supabase clients, validation, uploads, rich text, embeds
+scripts/             schema printing for codegen, one-off data scripts
 src/proxy.ts         session refresh and route protection
 ```
 
@@ -116,3 +118,7 @@ src/proxy.ts         session refresh and route protection
 ## Deployment
 
 Push to `main` and Vercel builds and deploys. Set the same environment variables in **Vercel → Project → Settings → Environment Variables**. Apply new migrations against the production database with `npx prisma migrate deploy` before deploying code that depends on them.
+
+## License
+
+[MIT](LICENSE)

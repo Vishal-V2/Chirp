@@ -13,7 +13,9 @@ export function ViewerProvider({
   viewer: ViewerProfile;
   children: React.ReactNode;
 }) {
-  return <ViewerContext.Provider value={viewer}>{children}</ViewerContext.Provider>;
+  return (
+    <ViewerContext.Provider value={viewer}>{children}</ViewerContext.Provider>
+  );
 }
 
 /** The signed-in user, or null outside the app shell. */

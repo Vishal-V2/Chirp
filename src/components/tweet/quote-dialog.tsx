@@ -9,11 +9,11 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useViewer } from "@/components/viewer-provider";
+import { useViewer } from "@/components/providers/viewer-provider";
 import { CreateTweetMutation } from "@/graphql/client/tweets";
 import type { TweetData } from "@/lib/types";
 import { TweetComposer, type ChirpExtras } from "./tweet-composer";
-import { tweetHref } from "./use-tweet-actions";
+import { tweetHref } from "@/hooks/use-tweet-actions";
 
 /** Write a quote repost: your comment with the original chirp embedded below. */
 export function QuoteDialog({

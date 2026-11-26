@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useQuery } from "urql";
-import { useViewer } from "@/components/viewer-provider";
+import { useViewer } from "@/components/providers/viewer-provider";
 import { UnreadMessageCountQuery } from "@/graphql/client/messages";
 import { cn } from "@/lib/utils";
 import { UnreadNotificationCountQuery } from "@/graphql/client/notifications";

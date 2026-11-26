@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "urql";
-import { useViewer } from "@/components/viewer-provider";
+import { useViewer } from "@/components/providers/viewer-provider";
 import { CreateTweetMutation, TweetPageQuery } from "@/graphql/client/tweets";
 import { TweetCard } from "./tweet-card";
 import { TweetComposer, type ChirpExtras } from "./tweet-composer";

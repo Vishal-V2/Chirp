@@ -36,7 +36,11 @@ export function UserAvatar({
     <Avatar className={cn("size-10", className)}>
       {src && <AvatarImage src={src} alt={name} />}
       <AvatarFallback
-        className={cn("font-semibold text-white", colorFor(username), fallbackClassName)}
+        className={cn(
+          "font-semibold text-white",
+          colorFor(username),
+          fallbackClassName,
+        )}
       >
         {initials(name)}
       </AvatarFallback>

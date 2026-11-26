@@ -16,11 +16,15 @@ export default async function ResetPasswordPage() {
 
   return (
     <>
-      <h1 className="mb-2 font-heading text-3xl font-extrabold tracking-tight">Choose a new password</h1>
+      <h1 className="mb-2 font-heading text-3xl font-extrabold tracking-tight">
+        Choose a new password
+      </h1>
       <p className="mb-8 text-muted-foreground">
         {viewer.email ? (
           <>
-            For <span className="font-medium text-foreground">{viewer.email}</span>.{" "}
+            For{" "}
+            <span className="font-medium text-foreground">{viewer.email}</span>
+            .{" "}
           </>
         ) : null}
         You&apos;ll stay signed in afterwards.

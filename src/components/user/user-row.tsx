@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useViewer } from "@/components/viewer-provider";
+import { useViewer } from "@/components/providers/viewer-provider";
 import { UserAvatar } from "@/components/user-avatar";
 import type { UserListFieldsFragment } from "@/generated/gql/graphql";
 import { FollowButton } from "./follow-button";

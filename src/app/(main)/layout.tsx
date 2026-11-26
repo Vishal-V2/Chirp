@@ -2,10 +2,10 @@ import { redirect } from "next/navigation";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { RightSidebar } from "@/components/layout/right-sidebar";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
-import { GraphQLProvider } from "@/components/graphql-provider";
+import { GraphQLProvider } from "@/components/providers/graphql-provider";
 import { RealtimeMessagesProvider } from "@/components/messages/realtime-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { ViewerProvider } from "@/components/viewer-provider";
+import { ViewerProvider } from "@/components/providers/viewer-provider";
 import { getViewer } from "@/lib/auth";
 
 export default async function MainLayout({ children }: LayoutProps<"/">) {

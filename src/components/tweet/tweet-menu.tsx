@@ -16,12 +16,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useViewer } from "@/components/viewer-provider";
+import { useViewer } from "@/components/providers/viewer-provider";
 import { DeleteTweetMutation } from "@/graphql/client/tweets";
 import type { TweetData } from "@/lib/types";
 import { deleteStoredFiles } from "@/lib/upload";
 import { cn } from "@/lib/utils";
-import { tweetHref } from "./use-tweet-actions";
+import { tweetHref } from "@/hooks/use-tweet-actions";
 
 /**
  * The "⋯" menu on a tweet. Authors get Delete (with confirmation);

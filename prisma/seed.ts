@@ -17,7 +17,8 @@ const allUsers: MockUser[] = [currentUser, ...Object.values(users)];
 
 // Stable UUIDs so re-seeding gives the same ids (User.id must be a UUID,
 // matching Supabase Auth user ids).
-const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const uuid = (n: number) =>
+  `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const userId = new Map(allUsers.map((u, i) => [u.id, uuid(i + 1)]));
 const idOf = (u: MockUser) => userId.get(u.id)!;
 
@@ -29,7 +30,8 @@ function pick(seed: string, chance: number) {
 }
 
 async function main() {
-  if (process.env.NODE_ENV === "production") throw new Error("Refusing to seed production.");
+  if (process.env.NODE_ENV === "production")
+    throw new Error("Refusing to seed production.");
 
   console.log("Clearing tables…");
   await prisma.$transaction([
@@ -54,7 +56,9 @@ async function main() {
   });
 
   // Parents must exist before replies, so insert oldest first.
-  const ordered = [...tweets].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const ordered = [...tweets].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt),
+  );
   console.log(`Creating ${ordered.length} tweets and replies…`);
   for (const t of ordered) {
     await prisma.tweet.create({
@@ -73,7 +77,10 @@ async function main() {
   const follows: { followerId: string; followingId: string }[] = [];
   for (const target of allUsers) {
     if (target.viewerIsFollowing) {
-      follows.push({ followerId: idOf(currentUser), followingId: idOf(target) });
+      follows.push({
+        followerId: idOf(currentUser),
+        followingId: idOf(target),
+      });
     }
     for (const follower of allUsers) {
       if (follower === currentUser || follower === target) continue;
@@ -88,12 +95,16 @@ async function main() {
   const likes: { userId: string; tweetId: string }[] = [];
   const retweets: { userId: string; tweetId: string }[] = [];
   for (const t of tweets) {
-    if (t.viewerHasLiked) likes.push({ userId: idOf(currentUser), tweetId: t.id });
-    if (t.viewerHasRetweeted) retweets.push({ userId: idOf(currentUser), tweetId: t.id });
+    if (t.viewerHasLiked)
+      likes.push({ userId: idOf(currentUser), tweetId: t.id });
+    if (t.viewerHasRetweeted)
+      retweets.push({ userId: idOf(currentUser), tweetId: t.id });
     for (const u of allUsers) {
       if (u === currentUser || u.id === t.author.id) continue;
-      if (pick(u.id + t.id, 0.5)) likes.push({ userId: idOf(u), tweetId: t.id });
-      if (pick(t.id + u.id, 0.2)) retweets.push({ userId: idOf(u), tweetId: t.id });
+      if (pick(u.id + t.id, 0.5))
+        likes.push({ userId: idOf(u), tweetId: t.id });
+      if (pick(t.id + u.id, 0.2))
+        retweets.push({ userId: idOf(u), tweetId: t.id });
     }
   }
   await prisma.like.createMany({ data: likes, skipDuplicates: true });

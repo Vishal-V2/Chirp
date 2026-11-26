@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMutation, useQuery } from "urql";
 import { BackButton } from "@/components/layout/back-button";
 import { UserAvatar } from "@/components/user-avatar";
-import { useViewer } from "@/components/viewer-provider";
+import { useViewer } from "@/components/providers/viewer-provider";
 import type { MessageFieldsFragment } from "@/generated/gql/graphql";
 import {
   ConversationQuery,

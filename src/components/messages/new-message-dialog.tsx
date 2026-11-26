@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { UserAvatar } from "@/components/user-avatar";
-import { useViewer } from "@/components/viewer-provider";
+import { useViewer } from "@/components/providers/viewer-provider";
 import { StartConversationMutation } from "@/graphql/client/messages";
 import { SearchUsersQuery } from "@/graphql/client/users";
 

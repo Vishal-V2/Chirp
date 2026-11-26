@@ -29,7 +29,11 @@ function ThemeIcon({ className }: { className?: string }) {
   );
 }
 
-export function ThemeToggle({ variant = "icon" }: { variant?: "sidebar" | "icon" }) {
+export function ThemeToggle({
+  variant = "icon",
+}: {
+  variant?: "sidebar" | "icon";
+}) {
   const { theme, setTheme } = useTheme();
 
   return (
@@ -42,7 +46,9 @@ export function ThemeToggle({ variant = "icon" }: { variant?: "sidebar" | "icon"
         )}
       >
         <ThemeIcon className={variant === "sidebar" ? "size-6" : "size-5"} />
-        {variant === "sidebar" && <span className="hidden xl:inline">Theme</span>}
+        {variant === "sidebar" && (
+          <span className="hidden xl:inline">Theme</span>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         side={variant === "sidebar" ? "right" : "bottom"}
@@ -51,9 +57,16 @@ export function ThemeToggle({ variant = "icon" }: { variant?: "sidebar" | "icon"
       >
         <DropdownMenuGroup>
           <DropdownMenuLabel>Theme</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
+          <DropdownMenuRadioGroup
+            value={theme ?? "system"}
+            onValueChange={setTheme}
+          >
             {options.map(({ value, label, icon: Icon }) => (
-              <DropdownMenuRadioItem key={value} value={value} className="py-2 text-[15px]">
+              <DropdownMenuRadioItem
+                key={value}
+                value={value}
+                className="py-2 text-[15px]"
+              >
                 <Icon />
                 {label}
               </DropdownMenuRadioItem>

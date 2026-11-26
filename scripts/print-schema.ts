@@ -8,5 +8,8 @@ import { writeFileSync } from "node:fs";
 import { lexicographicSortSchema, printSchema } from "graphql";
 import { schema } from "../src/graphql/schema";
 
-writeFileSync("schema.graphql", printSchema(lexicographicSortSchema(schema)) + "\n");
+writeFileSync(
+  "schema.graphql",
+  printSchema(lexicographicSortSchema(schema)) + "\n",
+);
 console.log("Wrote schema.graphql");

@@ -1,4 +1,7 @@
-import type { PollFieldsFragment, QuotedTweetFieldsFragment } from "@/generated/gql/graphql";
+import type {
+  PollFieldsFragment,
+  QuotedTweetFieldsFragment,
+} from "@/generated/gql/graphql";
 
 /** What the tweet UI needs to render one tweet. Both GraphQL results and the sample data fit this shape. */
 export type TweetData = {
@@ -20,6 +23,11 @@ export type TweetData = {
   viewerHasLiked: boolean;
   viewerHasRetweeted: boolean;
   viewerHasBookmarked?: boolean;
-  author: { id: string; username: string; displayName: string; avatarUrl?: string | null };
+  author: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl?: string | null;
+  };
   parent?: { id: string; author: { username: string } } | null;
 };

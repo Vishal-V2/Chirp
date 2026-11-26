@@ -74,13 +74,21 @@ export function TrendsList({
 
 /** Sidebar box: top 5 trends, hidden entirely until there are any. */
 export function SidebarTrends() {
-  const [{ data }] = useQuery({ query: TrendingHashtagsQuery, variables: { first: 5 } });
+  const [{ data }] = useQuery({
+    query: TrendingHashtagsQuery,
+    variables: { first: 5 },
+  });
   if (!data?.trendingHashtags.length) return null;
   return (
     <section>
-      <h2 className="px-4 pb-1 font-heading text-xl font-bold tracking-tight">Trending</h2>
+      <h2 className="px-4 pb-1 font-heading text-xl font-bold tracking-tight">
+        Trending
+      </h2>
       <TrendsList first={5} compact />
-      <Link href="/explore" className="block px-4 pt-1 text-sm text-primary hover:underline">
+      <Link
+        href="/explore"
+        className="block px-4 pt-1 text-sm text-primary hover:underline"
+      >
         See more on Explore
       </Link>
     </section>

@@ -1,0 +1,11 @@
+# Generated
+src/generated/
+schema.graphql
+next-env.d.ts
+graphify-out/
+prisma/migrations/
+
+# Dependencies and build output
+node_modules/
+.next/
+package-lock.json

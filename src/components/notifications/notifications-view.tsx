@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/feed/tweet-feed";
 import { PageHeader } from "@/components/layout/page-header";
 import { useLiveNotifications } from "@/components/messages/realtime-provider";
 import { TweetCard } from "@/components/tweet/tweet-card";
-import { tweetHref } from "@/components/tweet/use-tweet-actions";
+import { tweetHref } from "@/hooks/use-tweet-actions";
 import { UserAvatar } from "@/components/user-avatar";
 import type { NotificationsQuery as NotificationsData } from "@/generated/gql/graphql";
 import {
@@ -91,7 +91,8 @@ const ICONS = {
 
 /** Likes, reposts and follows: icon, faces, one line, and the chirp it's about. */
 function GroupRow({ g, unread }: { g: Group; unread: boolean }) {
-  if (g.type === "REPLY" || g.type === "MENTION" || g.type === "QUOTE") return null;
+  if (g.type === "REPLY" || g.type === "MENTION" || g.type === "QUOTE")
+    return null;
   const { icon: Icon, className } = ICONS[g.type];
   const href =
     g.type === "FOLLOW"
@@ -207,7 +208,10 @@ export function NotificationsView() {
       ) : (
         <>
           {group(items).map((g) =>
-            (g.type === "REPLY" || g.type === "MENTION" || g.type === "QUOTE") && g.tweet ? (
+            (g.type === "REPLY" ||
+              g.type === "MENTION" ||
+              g.type === "QUOTE") &&
+            g.tweet ? (
               <div
                 key={g.key}
                 className={cn(unreadIds.has(g.ids[0]) && "bg-primary/[0.06]")}

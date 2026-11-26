@@ -6,7 +6,7 @@ import { MailPlus } from "lucide-react";
 import { useQuery } from "urql";
 import { EmptyState } from "@/components/feed/tweet-feed";
 import { UserAvatar } from "@/components/user-avatar";
-import { useViewer } from "@/components/viewer-provider";
+import { useViewer } from "@/components/providers/viewer-provider";
 import { ConversationsQuery } from "@/graphql/client/messages";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";

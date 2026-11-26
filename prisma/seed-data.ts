@@ -147,7 +147,8 @@ export const tweets: MockTweet[] = [
   {
     id: "t5",
     author: users.theo,
-    content: "Just set up my first GraphQL API. Why did nobody tell me about GraphiQL sooner?",
+    content:
+      "Just set up my first GraphQL API. Why did nobody tell me about GraphiQL sooner?",
     createdAt: minutesAgo(60 * 26),
     likeCount: 14,
     retweetCount: 1,
@@ -172,7 +173,8 @@ tweets.push(
   {
     id: "t7",
     author: currentUser,
-    content: "Building a Twitter-style app with Next.js, GraphQL and Prisma. One step at a time.",
+    content:
+      "Building a Twitter-style app with Next.js, GraphQL and Prisma. One step at a time.",
     createdAt: daysAgo(2),
     likeCount: 21,
     retweetCount: 3,
@@ -183,13 +185,43 @@ tweets.push(
 );
 
 // Replies. `r3` replies to `r1`, so it shows a two-level thread.
-const replies: [id: string, author: MockUser, parentId: string, content: string, minsAgo: number][] = [
-  ["r1", users.ada, "t1", "Spacing and a type scale. Get those two right and you're 80% of the way there.", 3],
-  ["r2", users.lin, "t1", "Counterpoint: most UI problems are naming problems.", 2],
-  ["r3", users.sam, "r1", "Exactly. A type scale is just spacing for letters.", 1],
+const replies: [
+  id: string,
+  author: MockUser,
+  parentId: string,
+  content: string,
+  minsAgo: number,
+][] = [
+  [
+    "r1",
+    users.ada,
+    "t1",
+    "Spacing and a type scale. Get those two right and you're 80% of the way there.",
+    3,
+  ],
+  [
+    "r2",
+    users.lin,
+    "t1",
+    "Counterpoint: most UI problems are naming problems.",
+    2,
+  ],
+  [
+    "r3",
+    users.sam,
+    "r1",
+    "Exactly. A type scale is just spacing for letters.",
+    1,
+  ],
   ["r4", currentUser, "t3", "Congrats on the progress! What's your stack?", 80],
   ["r5", users.maya, "r4", "Next.js + Postgres. Boring tech, ships fast.", 70],
-  ["r6", users.ada, "t5", "Wait until you try codegen with it. Typed queries are a game changer.", 60 * 25],
+  [
+    "r6",
+    users.ada,
+    "t5",
+    "Wait until you try codegen with it. Typed queries are a game changer.",
+    60 * 25,
+  ],
 ];
 
 for (const [id, author, parentId, content, mins] of replies) {
@@ -203,7 +235,10 @@ for (const [id, author, parentId, content, mins] of replies) {
     replyCount: 0,
     viewerHasLiked: false,
     viewerHasRetweeted: false,
-    parent: { id: parentId, author: tweets.find((t) => t.id === parentId)!.author },
+    parent: {
+      id: parentId,
+      author: tweets.find((t) => t.id === parentId)!.author,
+    },
   });
 }
 
@@ -212,8 +247,10 @@ for (const tweet of tweets) {
   tweet.replyCount = tweets.filter((t) => t.parent?.id === tweet.id).length;
 }
 
-const newestFirst = (a: MockTweet, b: MockTweet) => b.createdAt.localeCompare(a.createdAt);
-const oldestFirst = (a: MockTweet, b: MockTweet) => a.createdAt.localeCompare(b.createdAt);
+const newestFirst = (a: MockTweet, b: MockTweet) =>
+  b.createdAt.localeCompare(a.createdAt);
+const oldestFirst = (a: MockTweet, b: MockTweet) =>
+  a.createdAt.localeCompare(b.createdAt);
 
 /** Top-level tweets for the home feed (replies are excluded, like the GraphQL feeds). */
 export function getHomeFeed(): MockTweet[] {

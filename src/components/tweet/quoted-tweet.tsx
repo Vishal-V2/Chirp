@@ -6,7 +6,7 @@ import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { findEmbed } from "@/lib/embeds";
 import { LinkEmbed } from "./link-embed";
-import { tweetHref } from "./use-tweet-actions";
+import { tweetHref } from "@/hooks/use-tweet-actions";
 
 /** What the embed needs; fits both a quoted chirp from the API and a full chirp. */
 type Quotable = {

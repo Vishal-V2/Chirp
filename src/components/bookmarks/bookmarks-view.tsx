@@ -2,7 +2,7 @@
 
 import { TweetFeed, feedSource } from "@/components/feed/tweet-feed";
 import { PageHeader } from "@/components/layout/page-header";
-import { useViewer } from "@/components/viewer-provider";
+import { useViewer } from "@/components/providers/viewer-provider";
 import { BookmarksQuery } from "@/graphql/client/tweets";
 
 const source = feedSource({

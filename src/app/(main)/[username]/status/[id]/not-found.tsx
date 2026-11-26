@@ -6,7 +6,9 @@ export default function TweetNotFound() {
     <>
       <PageHeader back title="Chirp" />
       <div className="fade-up mx-auto max-w-sm px-8 py-12">
-        <p className="font-heading text-3xl font-extrabold tracking-tight">This chirp doesn&apos;t exist</p>
+        <p className="font-heading text-3xl font-extrabold tracking-tight">
+          This chirp doesn&apos;t exist
+        </p>
         <p className="mt-2 text-muted-foreground">It may have been deleted.</p>
         <Link
           href="/"

@@ -6,7 +6,13 @@ import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** A number that rolls up when it grows and down when it shrinks. */
-export function AnimatedCount({ value, className }: { value: number; className?: string }) {
+export function AnimatedCount({
+  value,
+  className,
+}: {
+  value: number;
+  className?: string;
+}) {
   // Remember the previous value to know which way to roll.
   const [state, setState] = useState({ value, direction: 1 });
   if (state.value !== value) {
@@ -15,7 +21,12 @@ export function AnimatedCount({ value, className }: { value: number; className?:
   const { direction } = state;
 
   return (
-    <span className={cn("relative inline-flex overflow-hidden tabular-nums", className)}>
+    <span
+      className={cn(
+        "relative inline-flex overflow-hidden tabular-nums",
+        className,
+      )}
+    >
       <AnimatePresence initial={false} mode="popLayout" custom={direction}>
         <motion.span
           key={value}

@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { AnimatedCount } from "@/components/motion/animated-count";
 import { UserAvatar } from "@/components/user-avatar";
-import { useViewer } from "@/components/viewer-provider";
+import { useViewer } from "@/components/providers/viewer-provider";
 import { formatRelativeTime } from "@/lib/format";
 import type { TweetData } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,7 @@ import { TweetMedia } from "./tweet-media";
 import { TweetPoll } from "./tweet-poll";
 import { TweetMenu } from "./tweet-menu";
 import { shareLink } from "@/lib/share";
-import { tweetHref, useTweetActions } from "./use-tweet-actions";
+import { tweetHref, useTweetActions } from "@/hooks/use-tweet-actions";
 
 const PARTICLES = 10;
 

@@ -15,7 +15,7 @@ import { TweetMedia } from "./tweet-media";
 import { TweetPoll } from "./tweet-poll";
 import { TweetMenu } from "./tweet-menu";
 import { shareLink } from "@/lib/share";
-import { tweetHref, useTweetActions } from "./use-tweet-actions";
+import { tweetHref, useTweetActions } from "@/hooks/use-tweet-actions";
 
 function formatFullDate(iso: string) {
   const d = new Date(iso);

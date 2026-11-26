@@ -5,7 +5,7 @@ import { Check } from "lucide-react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { useMutation } from "urql";
-import { useViewer } from "@/components/viewer-provider";
+import { useViewer } from "@/components/providers/viewer-provider";
 import type { PollFieldsFragment } from "@/generated/gql/graphql";
 import { VotePollMutation } from "@/graphql/client/tweets";
 import { cn } from "@/lib/utils";
