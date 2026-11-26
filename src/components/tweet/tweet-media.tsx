@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Download } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -79,8 +79,27 @@ export function TweetMedia({
   );
 }
 
-/** Full-screen image viewer with arrow-key / button navigation. */
-function ImageViewer({
+/** Saves the image (fetched first, so it downloads instead of opening a tab). */
+async function downloadImage(url: string, name: string) {
+  try {
+    const blob = await (await fetch(url)).blob();
+    const href = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement("a"), {
+      href,
+      download: `${name}.${blob.type.split("/")[1]?.split("+")[0] || "jpg"}`,
+    });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+  } catch {
+    window.open(url, "_blank", "noopener");
+  }
+}
+
+/**
+ * Full-screen image viewer with arrow-key / button navigation and a download
+ * button. Used for chirp images and images in messages.
+ */
+export function ImageViewer({
   urls,
   author,
   index,
@@ -170,10 +189,25 @@ function ImageViewer({
             />
           )}
         </AnimatePresence>
-        {urls.length > 1 && index !== null && (
-          <p className="absolute bottom-5 rounded-full bg-black/55 px-3 py-1 text-sm text-white">
-            {index + 1} / {urls.length}
-          </p>
+        {index !== null && (
+          <div className="absolute bottom-5 flex items-center gap-3">
+            {urls.length > 1 && (
+              <p className="rounded-full bg-black/55 px-3 py-1 text-sm text-white">
+                {index + 1} / {urls.length}
+              </p>
+            )}
+            <button
+              type="button"
+              aria-label="Download image"
+              title="Download"
+              onClick={() =>
+                void downloadImage(urls[index], `chirp-image-${index + 1}`)
+              }
+              className="rounded-full bg-black/55 p-2 text-white backdrop-blur-sm hover:bg-black/75"
+            >
+              <Download className="size-5" />
+            </button>
+          </div>
         )}
       </DialogContent>
     </Dialog>
