@@ -7,7 +7,10 @@ import { signUp, type AuthState } from "@/app/actions/auth";
 import { FormError, FormField, SubmitButton } from "./form-field";
 
 export function SignupForm() {
-  const [state, action, pending] = useActionState<AuthState, FormData>(signUp, {});
+  const [state, action, pending] = useActionState<AuthState, FormData>(
+    signUp,
+    {},
+  );
 
   if (state.checkEmail) {
     return (
@@ -16,12 +19,17 @@ export function SignupForm() {
         <h2 className="text-2xl font-extrabold">Check your email</h2>
         <p className="text-muted-foreground">
           We sent a confirmation link to{" "}
-          <span className="font-medium text-foreground">{state.checkEmail}</span>. Click it to
-          finish creating your account.
+          <span className="font-medium text-foreground">
+            {state.checkEmail}
+          </span>
+          . Click it to finish creating your account.
         </p>
         <p className="text-sm text-muted-foreground">
           Didn&apos;t get it? Check your spam folder, or{" "}
-          <Link href="/login" className="font-medium text-primary hover:underline">
+          <Link
+            href="/login"
+            className="font-medium text-primary hover:underline"
+          >
             go to log in
           </Link>
           .
@@ -55,7 +63,10 @@ export function SignupForm() {
       <SubmitButton pending={pending}>Create account</SubmitButton>
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-primary hover:underline">
+        <Link
+          href="/login"
+          className="font-medium text-primary hover:underline"
+        >
           Log in
         </Link>
       </p>

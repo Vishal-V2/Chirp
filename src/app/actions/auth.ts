@@ -4,7 +4,12 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { emailSchema, fieldErrors, passwordSchema, safeNext } from "@/lib/validation";
+import {
+  emailSchema,
+  fieldErrors,
+  passwordSchema,
+  safeNext,
+} from "@/lib/validation";
 
 export type AuthState = {
   error?: string;
@@ -23,23 +28,37 @@ async function origin() {
   return `${proto}://${host}`;
 }
 
-export async function signUp(_prev: AuthState, formData: FormData): Promise<AuthState> {
+export async function signUp(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
   const email = String(formData.get("email") ?? "");
-  const parsed = credentials.safeParse({ email, password: formData.get("password") });
+  const parsed = credentials.safeParse({
+    email,
+    password: formData.get("password"),
+  });
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), email };
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     ...parsed.data,
-    options: { emailRedirectTo: `${await origin()}/auth/callback?next=/onboarding` },
+    options: {
+      emailRedirectTo: `${await origin()}/auth/callback?next=/onboarding`,
+    },
   });
 
   if (error) {
     if (error.code === "user_already_exists") {
-      return { error: "An account with this email already exists. Try logging in.", email };
+      return {
+        error: "An account with this email already exists. Try logging in.",
+        email,
+      };
     }
     if (error.code === "over_email_send_rate_limit") {
-      return { error: "Too many sign-up emails sent. Please wait a bit and try again.", email };
+      return {
+        error: "Too many sign-up emails sent. Please wait a bit and try again.",
+        email,
+      };
     }
     if (error.code === "weak_password") {
       return { fieldErrors: { password: error.message }, email };
@@ -53,10 +72,16 @@ export async function signUp(_prev: AuthState, formData: FormData): Promise<Auth
   return { checkEmail: parsed.data.email };
 }
 
-export async function signIn(_prev: AuthState, formData: FormData): Promise<AuthState> {
+export async function signIn(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
   const email = String(formData.get("email") ?? "");
   const parsed = z
-    .object({ email: emailSchema, password: z.string().min(1, "Enter your password.") })
+    .object({
+      email: emailSchema,
+      password: z.string().min(1, "Enter your password."),
+    })
     .safeParse({ email, password: formData.get("password") });
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), email };
 
@@ -64,9 +89,14 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
-    if (error.code === "invalid_credentials") return { error: "Wrong email or password.", email };
+    if (error.code === "invalid_credentials")
+      return { error: "Wrong email or password.", email };
     if (error.code === "email_not_confirmed") {
-      return { error: "Please confirm your email first. Check your inbox for the link.", email };
+      return {
+        error:
+          "Please confirm your email first. Check your inbox for the link.",
+        email,
+      };
     }
     return { error: error.message, email };
   }
@@ -81,7 +111,8 @@ export async function requestPasswordReset(
 ): Promise<AuthState> {
   const email = String(formData.get("email") ?? "");
   const parsed = emailSchema.safeParse(email);
-  if (!parsed.success) return { fieldErrors: { email: parsed.error.issues[0].message }, email };
+  if (!parsed.success)
+    return { fieldErrors: { email: parsed.error.issues[0].message }, email };
 
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data, {
@@ -89,7 +120,10 @@ export async function requestPasswordReset(
   });
 
   if (error?.code === "over_email_send_rate_limit") {
-    return { error: "Too many emails sent. Please wait a bit and try again.", email };
+    return {
+      error: "Too many emails sent. Please wait a bit and try again.",
+      email,
+    };
   }
   // Any other error (including "no such user") gets the same reply, so this
   // form can't be used to find out which emails have accounts.
@@ -97,32 +131,72 @@ export async function requestPasswordReset(
 }
 
 /** Sets a new password for the signed-in user (after following a reset link). */
-export async function updatePassword(_prev: AuthState, formData: FormData): Promise<AuthState> {
+export async function updatePassword(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
   const parsed = z
     .object({ password: passwordSchema, confirm: z.string() })
     .refine((v) => v.password === v.confirm, {
       path: ["confirm"],
       message: "Passwords don't match.",
     })
-    .safeParse({ password: formData.get("password"), confirm: formData.get("confirm") });
+    .safeParse({
+      password: formData.get("password"),
+      confirm: formData.get("confirm"),
+    });
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
 
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims?.sub) {
-    return { error: "Your reset link has expired. Request a new one from the login page." };
+    return {
+      error:
+        "Your reset link has expired. Request a new one from the login page.",
+    };
   }
 
-  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+  const { error } = await supabase.auth.updateUser({
+    password: parsed.data.password,
+  });
   if (error) {
     if (error.code === "same_password") {
-      return { fieldErrors: { password: "Choose a password different from your current one." } };
+      return {
+        fieldErrors: {
+          password: "Choose a password different from your current one.",
+        },
+      };
     }
-    if (error.code === "weak_password") return { fieldErrors: { password: error.message } };
+    if (error.code === "weak_password")
+      return { fieldErrors: { password: error.message } };
     return { error: error.message };
   }
 
   redirect("/");
+}
+
+/**
+ * Starts "Continue with Google": asks Supabase for Google's sign-in page and
+ * sends the browser there. Google returns to /auth/callback, which finishes
+ * signing in (new people then pick a username).
+ */
+export async function signInWithGoogle(formData: FormData) {
+  const next = safeNext(formData.get("next"));
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${await origin()}/auth/callback?next=${encodeURIComponent(next)}`,
+      // Let people pick which Google account to use.
+      queryParams: { prompt: "select_account" },
+    },
+  });
+  if (error || !data.url) {
+    redirect(
+      `/login?error=${encodeURIComponent("Google sign-in isn't available right now. Try again or use email.")}`,
+    );
+  }
+  redirect(data.url);
 }
 
 export async function signOut() {

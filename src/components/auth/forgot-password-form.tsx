@@ -19,10 +19,15 @@ export function ForgotPasswordForm() {
         <h2 className="text-2xl font-extrabold">Check your email</h2>
         <p className="text-muted-foreground">
           If an account exists for{" "}
-          <span className="font-medium text-foreground">{state.checkEmail}</span>, we sent a
-          link to reset your password. Open it in this same browser.
+          <span className="font-medium text-foreground">
+            {state.checkEmail}
+          </span>
+          , we sent a link to reset your password. Open it in this same browser.
         </p>
-        <Link href="/login" className="text-sm font-medium text-primary hover:underline">
+        <Link
+          href="/login"
+          className="text-sm font-medium text-primary hover:underline"
+        >
           Back to log in
         </Link>
       </div>
@@ -44,7 +49,10 @@ export function ForgotPasswordForm() {
       <SubmitButton pending={pending}>Send reset link</SubmitButton>
       <p className="text-center text-sm text-muted-foreground">
         Remembered it?{" "}
-        <Link href="/login" className="font-medium text-primary hover:underline">
+        <Link
+          href="/login"
+          className="font-medium text-primary hover:underline"
+        >
           Log in
         </Link>
       </p>

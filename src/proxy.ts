@@ -23,7 +23,9 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value),
+          );
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options),
@@ -44,7 +46,7 @@ export async function proxy(request: NextRequest) {
   // Supabase sends failed email links (expired, already used) back with
   // ?error_code=… on whatever page; explain it on the login page instead.
   const linkError = request.nextUrl.searchParams.get("error_code");
-  if (linkError && path !== "/login") {
+  if (linkError && path !== "/login" && !path.startsWith("/auth/callback")) {
     const url = request.nextUrl.clone();
     url.pathname = signedIn ? "/" : "/login";
     url.search = signedIn
@@ -68,7 +70,10 @@ export async function proxy(request: NextRequest) {
   if (!signedIn && !matches(path, PUBLIC_PATHS)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.search = path === "/" ? "" : `?next=${encodeURIComponent(path + request.nextUrl.search)}`;
+    url.search =
+      path === "/"
+        ? ""
+        : `?next=${encodeURIComponent(path + request.nextUrl.search)}`;
     return NextResponse.redirect(url);
   }
 

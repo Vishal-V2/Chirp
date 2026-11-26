@@ -3,13 +3,28 @@ import { createClient } from "@/lib/supabase/server";
 import { safeNext } from "@/lib/validation";
 
 /**
- * Supabase sends users here from the confirmation email with a one-time
- * `code`, which we exchange for a session cookie.
+ * Supabase sends people here with a one-time `code` (from a confirmation
+ * email, a password-reset email, or after "Continue with Google"), which we
+ * exchange for a session cookie.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
   const next = safeNext(searchParams.get("next"));
+
+  // Google (or Supabase) reported a problem, e.g. the person pressed Cancel.
+  const oauthError = searchParams.get("error");
+  if (oauthError && !code) {
+    const login = new URL("/login", origin);
+    login.searchParams.set(
+      "error",
+      oauthError === "access_denied"
+        ? "Google sign-in was cancelled."
+        : (searchParams.get("error_description") ??
+            "Couldn't sign you in. Please try again."),
+    );
+    return NextResponse.redirect(login);
+  }
 
   if (code) {
     const supabase = await createClient();

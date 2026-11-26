@@ -25,5 +25,15 @@ export const getViewer = cache(async () => {
     select: { id: true, username: true, displayName: true, avatarUrl: true },
   });
 
-  return { userId: claims.sub, email: claims.email as string | undefined, profile };
+  // Google sign-ins carry the person's name; used to prefill onboarding.
+  const meta = (claims.user_metadata ?? {}) as {
+    full_name?: string;
+    name?: string;
+  };
+  return {
+    userId: claims.sub,
+    email: claims.email as string | undefined,
+    name: meta.full_name ?? meta.name,
+    profile,
+  };
 });

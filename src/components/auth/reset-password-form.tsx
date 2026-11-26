@@ -5,7 +5,10 @@ import { updatePassword, type AuthState } from "@/app/actions/auth";
 import { FormError, FormField, SubmitButton } from "./form-field";
 
 export function ResetPasswordForm() {
-  const [state, action, pending] = useActionState<AuthState, FormData>(updatePassword, {});
+  const [state, action, pending] = useActionState<AuthState, FormData>(
+    updatePassword,
+    {},
+  );
 
   return (
     <form action={action} className="flex flex-col gap-5" noValidate>

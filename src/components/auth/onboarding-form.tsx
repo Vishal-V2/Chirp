@@ -4,8 +4,18 @@ import { useActionState } from "react";
 import { createProfile, type OnboardingState } from "@/app/onboarding/actions";
 import { FormError, FormField, SubmitButton } from "./form-field";
 
-export function OnboardingForm({ suggestedUsername }: { suggestedUsername: string }) {
-  const [state, action, pending] = useActionState<OnboardingState, FormData>(createProfile, {});
+export function OnboardingForm({
+  suggestedUsername,
+  suggestedName,
+}: {
+  suggestedUsername: string;
+  /** From Google sign-in, when available. */
+  suggestedName?: string;
+}) {
+  const [state, action, pending] = useActionState<OnboardingState, FormData>(
+    createProfile,
+    {},
+  );
 
   return (
     <form action={action} className="flex flex-col gap-5" noValidate>
@@ -16,7 +26,7 @@ export function OnboardingForm({ suggestedUsername }: { suggestedUsername: strin
         autoComplete="name"
         required
         maxLength={50}
-        defaultValue={state.values?.displayName}
+        defaultValue={state.values?.displayName ?? suggestedName?.slice(0, 50)}
         error={state.fieldErrors?.displayName}
       />
       <FormField

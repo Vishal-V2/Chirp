@@ -20,11 +20,16 @@ export default async function OnboardingPage() {
     <main className="flex min-h-dvh items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
         <Bird className="mb-8 size-10 text-primary" />
-        <h1 className="mb-2 font-heading text-3xl font-extrabold tracking-tight">Set up your profile</h1>
+        <h1 className="mb-2 font-heading text-3xl font-extrabold tracking-tight">
+          Set up your profile
+        </h1>
         <p className="mb-8 text-muted-foreground">
           Pick a name and a username. You can change your name later.
         </p>
-        <OnboardingForm suggestedUsername={suggested} />
+        <OnboardingForm
+          suggestedUsername={suggested}
+          suggestedName={viewer.name}
+        />
       </div>
     </main>
   );

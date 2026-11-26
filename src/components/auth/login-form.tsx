@@ -5,7 +5,13 @@ import Link from "next/link";
 import { signIn, type AuthState } from "@/app/actions/auth";
 import { FormError, FormField, SubmitButton } from "./form-field";
 
-export function LoginForm({ next, linkError }: { next?: string; linkError?: string }) {
+export function LoginForm({
+  next,
+  linkError,
+}: {
+  next?: string;
+  linkError?: string;
+}) {
   const [state, action, pending] = useActionState<AuthState, FormData>(signIn, {
     error: linkError,
   });
@@ -40,7 +46,10 @@ export function LoginForm({ next, linkError }: { next?: string; linkError?: stri
       <SubmitButton pending={pending}>Log in</SubmitButton>
       <p className="text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="font-medium text-primary hover:underline">
+        <Link
+          href="/signup"
+          className="font-medium text-primary hover:underline"
+        >
           Sign up
         </Link>
       </p>

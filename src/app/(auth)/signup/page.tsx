@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GoogleSignIn } from "@/components/auth/google-button";
 import { SignupForm } from "@/components/auth/signup-form";
 
 export const metadata: Metadata = { title: "Sign up" };
@@ -12,6 +13,7 @@ export default function SignupPage() {
       <p className="mb-8 text-lg text-muted-foreground">
         Create an account to post and follow people.
       </p>
+      <GoogleSignIn />
       <SignupForm />
     </>
   );

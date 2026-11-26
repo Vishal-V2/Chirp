@@ -12,7 +12,11 @@ export function FormField({
   type = "text",
   className,
   ...props
-}: React.ComponentProps<"input"> & { label: string; error?: string; hint?: string }) {
+}: React.ComponentProps<"input"> & {
+  label: string;
+  error?: string;
+  hint?: string;
+}) {
   const id = useId();
   const [visible, setVisible] = useState(false);
   const isPassword = type === "password";
@@ -31,7 +35,8 @@ export function FormField({
           className={cn(
             "h-12 w-full rounded-md border bg-background px-3 text-base outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary",
             isPassword && "pr-11",
-            error && "border-destructive focus:border-destructive focus:ring-destructive",
+            error &&
+              "border-destructive focus:border-destructive focus:ring-destructive",
           )}
           {...props}
         />
@@ -42,14 +47,21 @@ export function FormField({
             aria-label={visible ? "Hide password" : "Show password"}
             className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted-foreground hover:text-foreground"
           >
-            {visible ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+            {visible ? (
+              <EyeOff className="size-5" />
+            ) : (
+              <Eye className="size-5" />
+            )}
           </button>
         )}
       </div>
       {(error || hint) && (
         <p
           id={`${id}-msg`}
-          className={cn("mt-1.5 text-sm", error ? "text-destructive" : "text-muted-foreground")}
+          className={cn(
+            "mt-1.5 text-sm",
+            error ? "text-destructive" : "text-muted-foreground",
+          )}
         >
           {error ?? hint}
         </p>
@@ -70,7 +82,13 @@ export function FormError({ message }: { message?: string }) {
   );
 }
 
-export function SubmitButton({ pending, children }: { pending: boolean; children: React.ReactNode }) {
+export function SubmitButton({
+  pending,
+  children,
+}: {
+  pending: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="submit"
