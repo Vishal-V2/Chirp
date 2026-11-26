@@ -10,17 +10,17 @@ const OPTIONS: { value: DmPolicy; label: string; hint: string }[] = [
   {
     value: "EVERYONE",
     label: "Everyone",
-    hint: "People you don't follow land in Message requests first.",
+    hint: "Anyone can message you, straight into your inbox.",
   },
   {
     value: "FOLLOWING",
     label: "People you follow",
-    hint: "Only people you follow can start a chat with you.",
+    hint: "People you follow go to your inbox; everyone else lands in Message requests.",
   },
   {
     value: "NOBODY",
     label: "No one",
-    hint: "Nobody can start a new chat. Chats you've already accepted keep working.",
+    hint: "Only people you follow can message you. Everyone else is blocked.",
   },
 ];
 

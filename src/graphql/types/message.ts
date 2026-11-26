@@ -36,9 +36,24 @@ async function follows(a: string, b: string) {
 }
 
 /**
- * Throws unless `other`'s "Allow messages from" setting lets `me` write to
- * them. A chat they've already accepted keeps working whatever the setting.
+ * Who can message you:
+ *   EVERYONE  - anyone; their messages go straight to your inbox.
+ *   FOLLOWING - people you follow go to your inbox; anyone else lands in
+ *               Message requests.
+ *   NOBODY    - only people you follow; anyone else is refused.
+ * A chat you've already accepted keeps working whatever the setting.
  */
+
+/** Does `recipient` take messages from `sender` straight into their inbox? */
+async function goesToInbox(sender: string, recipient: string) {
+  const { dmPolicy } = await prisma.user.findUniqueOrThrow({
+    where: { id: recipient },
+    select: { dmPolicy: true },
+  });
+  return dmPolicy === "EVERYONE" || (await follows(recipient, sender));
+}
+
+/** Throws unless `other`'s setting lets `me` write to them at all. */
 async function assertCanMessage(
   me: string,
   other: string,
@@ -55,10 +70,8 @@ async function assertCanMessage(
     where: { id: other },
     select: { username: true, dmPolicy: true },
   });
-  if (target.dmPolicy === "NOBODY") {
-    throw badInput(`@${target.username} doesn't accept new messages.`);
-  }
-  if (target.dmPolicy === "FOLLOWING" && !(await follows(other, me))) {
+  // "No one": only people they follow may start a chat.
+  if (target.dmPolicy === "NOBODY" && !(await follows(other, me))) {
     throw badInput(
       `@${target.username} only accepts messages from people they follow.`,
     );
@@ -294,8 +307,8 @@ export function addMessageTypes(builder: Builder) {
         if (existing) return existing;
         await assertCanMessage(me, other);
         const now = new Date();
-        // It's a request for them unless they follow you.
-        const theyFollowYou = await follows(other, me);
+        // Straight to their inbox, or a message request (see goesToInbox).
+        const toInbox = await goesToInbox(me, other);
         return prisma.conversation.create({
           ...query,
           data: {
@@ -303,7 +316,7 @@ export function addMessageTypes(builder: Builder) {
             participants: {
               create: [
                 { userId: me, lastReadAt: now, acceptedAt: now },
-                { userId: other, acceptedAt: theyFollowYou ? now : null },
+                { userId: other, acceptedAt: toInbox ? now : null },
               ],
             },
           },
@@ -358,8 +371,8 @@ export function addMessageTypes(builder: Builder) {
         // They haven't accepted this chat yet: it's a request for them.
         let acceptForThem = false;
         if (other && !other.acceptedAt) {
-          if (await follows(other.userId, me)) {
-            acceptForThem = true; // they follow you now: no request needed
+          if (await goesToInbox(me, other.userId)) {
+            acceptForThem = true; // they follow you now, or take everyone
           } else {
             await assertCanMessage(me, other.userId, conversationId);
             const sent = await prisma.message.count({

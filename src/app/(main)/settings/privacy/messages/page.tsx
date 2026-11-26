@@ -10,8 +10,9 @@ export default function DirectMessagesSettingsPage() {
       <PageHeader back title="Who can message you" />
       <DmPolicySetting />
       <p className="px-4 pt-2 text-[13px] text-muted-foreground">
-        Messages from people you don&apos;t follow go to Message requests in
-        your inbox, where you can accept, delete or block them.
+        Message requests wait in your inbox until you accept, delete or block
+        them, and don&apos;t ping you. Chats you&apos;ve already accepted keep
+        working whatever you choose.
       </p>
     </>
   );
