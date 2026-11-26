@@ -5,6 +5,7 @@ export const MessageFieldsFragment = graphql(`
     id
     content
     mediaPaths
+    deletedAt
     createdAt
     conversationId
     senderId
@@ -27,6 +28,7 @@ export const ConversationsQuery = graphql(`
         id
         content
         mediaPaths
+        deletedAt
         createdAt
         senderId
       }
@@ -111,5 +113,21 @@ export const PingSenderQuery = graphql(`
         viewerHasMuted
       }
     }
+  }
+`);
+
+/** Unsend your message: both people see "This message was deleted". */
+export const UnsendMessageMutation = graphql(`
+  mutation UnsendMessage($id: ID!) {
+    unsendMessage(id: $id) {
+      ...MessageFields
+    }
+  }
+`);
+
+/** "Delete for you": hide a message on your side only. */
+export const DeleteMessageForMeMutation = graphql(`
+  mutation DeleteMessageForMe($id: ID!) {
+    deleteMessageForMe(id: $id)
   }
 `);

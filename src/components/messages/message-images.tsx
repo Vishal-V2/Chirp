@@ -32,7 +32,7 @@ export function MessageImages({
     <>
       <div
         className={cn(
-          "grid max-w-[78%] gap-1 overflow-hidden rounded-3xl",
+          "grid max-w-full gap-1 overflow-hidden rounded-3xl",
           single ? "w-64 grid-cols-1" : "w-72 grid-cols-2",
           mine ? "ml-auto" : "mr-auto",
           dimmed && "opacity-70",

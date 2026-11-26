@@ -44,8 +44,9 @@ model User {
   pollVotes     PollVote[]
 
   bookmarks             Bookmark[]
-  notificationsReceived Notification[] @relation("notificationsReceived")
-  notificationsSent     Notification[] @relation("notificationsSent")
+  hiddenMessages        HiddenMessage[]
+  notificationsReceived Notification[]  @relation("notificationsReceived")
+  notificationsSent     Notification[]  @relation("notificationsSent")
 
   /// People this user blocked / who blocked this user.
   blocks    Block[] @relation("blocker")
@@ -165,17 +166,22 @@ model ConversationParticipant {
 }
 
 model Message {
-  id             String   @id @default(cuid())
-  content        String   @db.VarChar(1000)
+  id             String    @id @default(cuid())
+  content        String    @db.VarChar(1000)
   /// Private images: paths in the "message-media" bucket, as
   /// "<conversationId>/<senderId>/<file>". Only the chat's participants can open them.
-  mediaPaths     String[] @default([])
-  createdAt      DateTime @default(now())
+  mediaPaths     String[]  @default([])
+  /// Set when the sender unsends it: its text and images are cleared and both
+  /// people see "This message was deleted".
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
   conversationId String
-  senderId       String   @db.Uuid
+  senderId       String    @db.Uuid
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  conversation Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User            @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  /// People who chose "Delete for you" on this message.
+  hiddenFor    HiddenMessage[]
 
   @@index([conversationId, createdAt(sort: Desc)])
 }
@@ -286,4 +292,17 @@ model Mute {
 
   @@id([muterId, mutedId])
   @@index([mutedId])
+}
+
+/// "Delete for you": this message is hidden for this user only.
+model HiddenMessage {
+  userId    String   @db.Uuid
+  messageId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@id([userId, messageId])
+  @@index([messageId])
 }

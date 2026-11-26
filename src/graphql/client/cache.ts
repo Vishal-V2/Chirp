@@ -210,6 +210,19 @@ export const graphcache = cacheExchange({
       unbookmarkTweet(_result, _args, cache) {
         invalidateFields(cache, "Query", ["bookmarks"]);
       },
+      // Your inbox preview and unread badge may change.
+      unsendMessage(_result, _args, cache) {
+        invalidateFields(cache, "Query", [
+          "conversations",
+          "unreadMessageCount",
+        ]);
+      },
+      deleteMessageForMe(_result, _args, cache) {
+        invalidateFields(cache, "Query", [
+          "conversations",
+          "unreadMessageCount",
+        ]);
+      },
       markNotificationsRead(_result, _args, cache) {
         invalidateFields(cache, "Query", ["unreadNotificationCount"]);
       },

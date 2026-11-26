@@ -119,6 +119,7 @@ export function Pinger() {
   });
 
   useLiveMessages(async (m) => {
+    if (m.edited) return; // an unsend, not a new message
     if (m.senderId === viewer?.id) return; // your own message
     // Already reading this chat.
     if (pathname === `/messages/${m.conversationId}` && watching()) return;

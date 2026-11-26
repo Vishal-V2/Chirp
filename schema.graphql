@@ -42,6 +42,7 @@ type Message {
   content: String!
   conversationId: ID!
   createdAt: DateTime!
+  deletedAt: DateTime
   id: ID!
   mediaPaths: [String!]!
   sender: User!
@@ -53,6 +54,7 @@ type Mutation {
   bookmarkTweet(id: ID!): Tweet!
   createThread(parts: [ThreadPartInput!]!): Tweet!
   createTweet(content: String!, location: String, mediaUrls: [String!], parentId: ID, poll: PollInput, quotedId: ID): Tweet!
+  deleteMessageForMe(id: ID!): ID!
   deleteTweet(id: ID!): Boolean!
   follow(userId: ID!): User!
   likeTweet(id: ID!): Tweet!
@@ -70,6 +72,7 @@ type Mutation {
   unmute(userId: ID!): User!
   unpinTweet(id: ID!): [Tweet!]!
   unretweet(id: ID!): Tweet!
+  unsendMessage(id: ID!): Message!
   updateProfile(input: UpdateProfileInput!): User!
   votePoll(optionId: ID!): Poll!
 }

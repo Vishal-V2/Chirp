@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { badInput, notFound, requireUser } from "../auth";
 import type { Builder } from "../builder";
 import { assertNotWalled } from "../safety";
+import { MESSAGE_MEDIA_BUCKET } from "@/lib/storage";
 
 /** Each pair of users shares one conversation, keyed by their sorted ids. */
 const pairKeyFor = (a: string, b: string) => [a, b].sort().join(":");
@@ -32,6 +33,8 @@ export function addMessageTypes(builder: Builder) {
       content: t.exposeString("content"),
       /** Private image paths; the app opens them with short-lived signed links. */
       mediaPaths: t.exposeStringList("mediaPaths"),
+      /** Set when the sender unsent it ("This message was deleted"). */
+      deletedAt: t.expose("deletedAt", { type: "DateTime", nullable: true }),
       createdAt: t.expose("createdAt", { type: "DateTime" }),
       conversationId: t.exposeID("conversationId"),
       senderId: t.exposeID("senderId"),
@@ -62,10 +65,13 @@ export function addMessageTypes(builder: Builder) {
       lastMessage: t.prismaField({
         type: "Message",
         nullable: true,
-        resolve: (query, conversation) =>
+        resolve: (query, conversation, _args, ctx) =>
           prisma.message.findFirst({
             ...query,
-            where: { conversationId: conversation.id },
+            where: {
+              conversationId: conversation.id,
+              hiddenFor: { none: { userId: requireUser(ctx) } },
+            },
             orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           }),
       }),
@@ -78,6 +84,8 @@ export function addMessageTypes(builder: Builder) {
             where: {
               conversationId: conversation.id,
               senderId: { not: me },
+              deletedAt: null,
+              hiddenFor: { none: { userId: me } },
               ...(lastReadAt && { createdAt: { gt: lastReadAt } }),
             },
           });
@@ -86,7 +94,11 @@ export function addMessageTypes(builder: Builder) {
       /** Newest first; the chat view shows them oldest-to-newest. */
       messages: t.relatedConnection("messages", {
         cursor: "id",
-        query: () => ({ orderBy: [{ createdAt: "desc" }, { id: "desc" }] }),
+        // Leaves out messages you chose "Delete for you" on.
+        query: (_args, ctx) => ({
+          where: { hiddenFor: { none: { userId: requireUser(ctx) } } },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        }),
       }),
     }),
   });
@@ -141,6 +153,8 @@ export function addMessageTypes(builder: Builder) {
         return prisma.message.count({
           where: {
             senderId: { not: ctx.userId },
+            deletedAt: null,
+            hiddenFor: { none: { userId: ctx.userId } },
             OR: mine.map((p) => ({
               conversationId: p.conversationId,
               ...(p.lastReadAt && { createdAt: { gt: p.lastReadAt } }),
@@ -250,6 +264,63 @@ export function addMessageTypes(builder: Builder) {
           }),
         ]);
         return message;
+      },
+    }),
+    /**
+     * Unsend one of your messages: its text and images are removed for good
+     * and both people see "This message was deleted" (live, via Realtime).
+     */
+    unsendMessage: t.prismaField({
+      type: "Message",
+      args: { id: t.arg.id({ required: true }) },
+      resolve: async (query, _root, args, ctx) => {
+        const me = requireUser(ctx);
+        const message = await prisma.message.findUnique({
+          where: { id: String(args.id) },
+          select: { senderId: true, mediaPaths: true },
+        });
+        if (!message) throw notFound("This message doesn't exist.");
+        if (message.senderId !== me) {
+          throw badInput("You can only unsend your own messages.");
+        }
+        const updated = await prisma.message.update({
+          ...query,
+          where: { id: String(args.id) },
+          data: { deletedAt: new Date(), content: "", mediaPaths: [] },
+        });
+        // Remove its photos from storage too (best effort).
+        if (message.mediaPaths.length > 0 && process.env.SUPABASE_SECRET_KEY) {
+          try {
+            // Loaded only when needed (it's server-only and full-access).
+            const { createAdminClient } = await import("@/lib/supabase/admin");
+            await createAdminClient()
+              .storage.from(MESSAGE_MEDIA_BUCKET)
+              .remove(message.mediaPaths);
+          } catch (e) {
+            console.error("couldn't remove unsent message images", e);
+          }
+        }
+        return updated;
+      },
+    }),
+    /** "Delete for you": hides a message on your side only. */
+    deleteMessageForMe: t.id({
+      args: { id: t.arg.id({ required: true }) },
+      resolve: async (_root, args, ctx) => {
+        const me = requireUser(ctx);
+        const messageId = String(args.id);
+        const message = await prisma.message.findUnique({
+          where: { id: messageId },
+          select: { conversationId: true },
+        });
+        if (!message) throw notFound("This message doesn't exist.");
+        await requireParticipant(message.conversationId, me);
+        await prisma.hiddenMessage.upsert({
+          where: { userId_messageId: { userId: me, messageId } },
+          create: { userId: me, messageId },
+          update: {},
+        });
+        return messageId;
       },
     }),
     markConversationRead: t.prismaField({

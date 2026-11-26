@@ -11,13 +11,17 @@ import { useViewer } from "@/components/providers/viewer-provider";
 import type { MessageFieldsFragment } from "@/generated/gql/graphql";
 import {
   ConversationQuery,
+  DeleteMessageForMeMutation,
   MarkConversationReadMutation,
+  UnsendMessageMutation,
   SendMessageMutation,
 } from "@/graphql/client/messages";
 import { cn } from "@/lib/utils";
 import { useLiveMessages } from "./realtime-provider";
 import { useTyping } from "./use-typing";
 import { MessageImages } from "./message-images";
+import { MessageActions } from "./message-actions";
+import { toast } from "sonner";
 import { IMAGE_TYPES } from "@/lib/storage";
 import {
   checkImage,
@@ -104,6 +108,10 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   });
   const [, send] = useMutation(SendMessageMutation);
   const [, markRead] = useMutation(MarkConversationReadMutation);
+  const [, unsend] = useMutation(UnsendMessageMutation);
+  const [, deleteForMe] = useMutation(DeleteMessageForMeMutation);
+  // Messages you deleted for yourself (hidden at once; the server agrees later).
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set());
   const { otherTyping, notifyTyping, notifyStopped, clearOtherTyping } =
     useTyping(conversationId, viewer.id);
 
@@ -121,13 +129,15 @@ export function ChatView({ conversationId }: { conversationId: string }) {
     for (const e of conversation?.messages.edges ?? [])
       byId.set(e.node.id, e.node);
     for (const m of extra)
-      if (!byId.has(m.id) || m.status)
+      if (!byId.has(m.id) || m.status || m.deletedAt)
         byId.set(m.id, { ...byId.get(m.id), ...m });
-    return [...byId.values()].sort(
-      (a, b) =>
-        a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
-    );
-  }, [conversation, extra]);
+    return [...byId.values()]
+      .filter((m) => !hidden.has(m.id))
+      .sort(
+        (a, b) =>
+          a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+      );
+  }, [conversation, extra, hidden]);
 
   // Mark as read when opened (and again when their messages arrive).
   useEffect(() => {
@@ -136,7 +146,16 @@ export function ChatView({ conversationId }: { conversationId: string }) {
 
   useLiveMessages((m) => {
     if (m.conversationId !== conversationId) return;
-    setExtra((list) => (list.some((x) => x.id === m.id) ? list : [...list, m]));
+    const live: ChatMessage = { ...m, deletedAt: m.deletedAt ?? null };
+    // An unsend replaces the message; a new message is added once.
+    setExtra((list) =>
+      m.edited
+        ? [...list.filter((x) => x.id !== m.id), live]
+        : list.some((x) => x.id === m.id)
+          ? list
+          : [...list, live],
+    );
+    if (m.edited) return;
     if (m.senderId !== viewer.id) {
       clearOtherTyping();
       if (document.visibilityState === "visible")
@@ -225,6 +244,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
         id: tempId,
         content,
         mediaPaths: [],
+        deletedAt: null,
         previews,
         files,
         createdAt: new Date().toISOString(),
@@ -239,6 +259,43 @@ export function ChatView({ conversationId }: { conversationId: string }) {
     stuckToBottom.current = true;
     notifyStopped();
     void deliver(content, files, tempId);
+  }
+
+  async function unsendMessage(m: ChatMessage) {
+    // Show it as deleted straight away; undo if the server refuses.
+    const before = m;
+    setExtra((list) => [
+      ...list.filter((x) => x.id !== m.id),
+      {
+        ...m,
+        content: "",
+        mediaPaths: [],
+        previews: undefined,
+        deletedAt: new Date().toISOString(),
+      },
+    ]);
+    const result = await unsend({ id: m.id });
+    if (result.error) {
+      setExtra((list) => [...list.filter((x) => x.id !== m.id), before]);
+      toast.error(
+        result.error.graphQLErrors[0]?.message ?? "Couldn't unsend that.",
+      );
+    }
+  }
+
+  async function deleteMessageForMe(m: ChatMessage) {
+    setHidden((set) => new Set(set).add(m.id));
+    const result = await deleteForMe({ id: m.id });
+    if (result.error) {
+      setHidden((set) => {
+        const next = new Set(set);
+        next.delete(m.id);
+        return next;
+      });
+      toast.error(
+        result.error.graphQLErrors[0]?.message ?? "Couldn't delete that.",
+      );
+    }
   }
 
   function retry(m: ChatMessage) {
@@ -356,13 +413,27 @@ export function ChatView({ conversationId }: { conversationId: string }) {
                     sameAsPrev ? "pt-0.5" : "pt-2",
                   )}
                 >
-                  <div
-                    className={cn(
-                      "flex max-w-full flex-col gap-1",
-                      mine ? "items-end" : "items-start",
-                    )}
+                  <MessageActions
+                    mine={mine}
+                    canUnsend={mine && !m.deletedAt && !m.status}
+                    onUnsend={() => void unsendMessage(m)}
+                    onDeleteForMe={() => void deleteMessageForMe(m)}
                   >
-                    {m.previews?.length || m.mediaPaths?.length ? (
+                    {m.deletedAt ? (
+                      <p
+                        className={cn(
+                          "rounded-3xl border px-4 py-2.5 text-[15px] text-muted-foreground italic",
+                          lastInGroup &&
+                            (mine ? "rounded-br-md" : "rounded-bl-md"),
+                        )}
+                      >
+                        {mine
+                          ? "You unsent a message"
+                          : "This message was deleted"}
+                      </p>
+                    ) : null}
+                    {!m.deletedAt &&
+                    (m.previews?.length || m.mediaPaths?.length) ? (
                       <MessageImages
                         paths={m.mediaPaths}
                         previews={m.previews}
@@ -370,10 +441,10 @@ export function ChatView({ conversationId }: { conversationId: string }) {
                         dimmed={m.status === "sending"}
                       />
                     ) : null}
-                    {m.content && (
+                    {!m.deletedAt && m.content && (
                       <p
                         className={cn(
-                          "max-w-[78%] rounded-3xl px-4 py-2.5 text-[15px] leading-snug break-words whitespace-pre-wrap",
+                          "max-w-full rounded-3xl px-4 py-2.5 text-[15px] leading-snug break-words whitespace-pre-wrap",
                           mine
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-foreground",
@@ -387,7 +458,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
                         {m.content}
                       </p>
                     )}
-                  </div>
+                  </MessageActions>
                 </div>
                 {m.status === "failed" ? (
                   <button

@@ -10,6 +10,10 @@ export type LiveMessage = {
   content: string;
   /** Private image paths (see src/lib/message-media.ts). */
   mediaPaths: string[];
+  /** Set when the sender unsent it. */
+  deletedAt?: string | null;
+  /** True for a change to an existing message (an unsend), not a new one. */
+  edited?: boolean;
   createdAt: string;
   conversationId: string;
   senderId: string;
@@ -50,6 +54,25 @@ export function RealtimeMessagesProvider({
     let channel: RealtimeChannel | undefined;
     let cancelled = false;
 
+    // Messages you may not read arrive as empty events tagged "401
+    // Unauthorized" (no content leaks); those are ignored.
+    const onMessage = (
+      payload: { errors?: unknown; new: unknown },
+      edited: boolean,
+    ) => {
+      const row = payload.new as Partial<LiveMessage>;
+      if ((payload.errors as unknown[] | undefined)?.length || !row?.id) return;
+      const message = {
+        ...(row as LiveMessage),
+        createdAt: new Date(asUtc(row.createdAt!)).toISOString(),
+        deletedAt: row.deletedAt
+          ? new Date(asUtc(row.deletedAt)).toISOString()
+          : null,
+        edited,
+      };
+      listeners.forEach((fn) => fn(message));
+    };
+
     (async () => {
       // Make sure the socket carries the user's login, so the database's
       // participant-only rule can be applied to them.
@@ -62,21 +85,13 @@ export function RealtimeMessagesProvider({
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "Message" },
-          (payload) => {
-            // Messages you may not read arrive as empty events tagged
-            // "401 Unauthorized" (no content leaks); ignore them.
-            if (
-              payload.errors?.length ||
-              !(payload.new as Partial<LiveMessage>)?.id
-            )
-              return;
-            const row = payload.new as LiveMessage;
-            const message = {
-              ...row,
-              createdAt: new Date(asUtc(row.createdAt)).toISOString(),
-            };
-            listeners.forEach((fn) => fn(message));
-          },
+          (payload) => onMessage(payload, false),
+        )
+        // Unsends arrive as updates to an existing message.
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "Message" },
+          (payload) => onMessage(payload, true),
         )
         .on(
           "postgres_changes",
