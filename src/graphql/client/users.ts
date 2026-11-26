@@ -191,3 +191,12 @@ export const DiscoverPeopleQuery = graphql(`
     }
   }
 `);
+
+export const UsernameAvailableQuery = graphql(`
+  query UsernameAvailable($username: String!) {
+    usernameAvailable(username: $username) {
+      available
+      message
+    }
+  }
+`);

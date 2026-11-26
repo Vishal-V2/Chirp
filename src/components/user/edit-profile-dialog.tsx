@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Camera, X } from "lucide-react";
 import {
   Dialog,
@@ -11,7 +11,12 @@ import {
 } from "@/components/ui/dialog";
 import { UserAvatar } from "@/components/user-avatar";
 import type { ProfileFieldsFragment } from "@/generated/gql/graphql";
-import { IMAGE_TYPES, MAX_IMAGE_BYTES } from "@/lib/storage";
+import { useQuery } from "urql";
+import { UsernameAvailableQuery } from "@/graphql/client/users";
+import { IMAGE_TYPES } from "@/lib/storage";
+import { AVATAR_CROP, BANNER_CROP, ImageCropper } from "./image-cropper";
+
+const MAX_ORIGINAL_BYTES = 25 * 1024 * 1024;
 import { cn } from "@/lib/utils";
 
 const NAME_MAX = 50;
@@ -22,6 +27,7 @@ type ImageField = "avatarUrl" | "bannerUrl";
 /** Form state. Image URLs may be local previews (blob:) until saved. */
 type ProfileEdits = {
   displayName: string;
+  username: string;
   bio: string;
   avatarUrl: string | null;
   bannerUrl: string | null;
@@ -30,6 +36,8 @@ type ProfileEdits = {
 /** What the dialog hands back on Save. New images come as files to upload. */
 export type ProfileSave = {
   displayName: string;
+  /** Only set when you changed it. */
+  username?: string;
   bio: string;
   /** Existing image to keep, or null to remove (ignored when a new file is given). */
   avatarUrl: string | null;
@@ -41,6 +49,7 @@ export type ProfileSave = {
 function fromUser(user: ProfileFieldsFragment): ProfileEdits {
   return {
     displayName: user.displayName,
+    username: user.username,
     bio: user.bio ?? "",
     avatarUrl: user.avatarUrl,
     bannerUrl: user.bannerUrl,
@@ -53,6 +62,8 @@ function Field({
   value,
   max,
   error,
+  success,
+  prefix,
   multiline,
   onChange,
 }: {
@@ -60,6 +71,10 @@ function Field({
   value: string;
   max: number;
   error?: string;
+  /** Positive status under the field (e.g. "@name is available"). */
+  success?: string;
+  /** Fixed text before the input, like "@". */
+  prefix?: string;
   multiline?: boolean;
   onChange: (value: string) => void;
 }) {
@@ -99,18 +114,32 @@ function Field({
             aria-invalid={Boolean(error) || over}
           />
         ) : (
-          <input
-            id={id}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className={inputClass}
-            aria-invalid={Boolean(error) || over}
-          />
+          <div className="flex items-baseline">
+            {prefix && (
+              <span className="pr-0.5 text-[17px] text-muted-foreground">
+                {prefix}
+              </span>
+            )}
+            <input
+              id={id}
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              className={inputClass}
+              aria-invalid={Boolean(error) || over}
+              autoCapitalize={prefix ? "off" : undefined}
+              autoCorrect={prefix ? "off" : undefined}
+              spellCheck={prefix ? false : undefined}
+            />
+          </div>
         )}
       </div>
-      {error && (
+      {error ? (
         <p className="mt-1 px-2 text-[13px] text-destructive">{error}</p>
-      )}
+      ) : success ? (
+        <p className="mt-1 px-2 text-[13px] text-emerald-600 dark:text-emerald-400">
+          {success}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -149,6 +178,11 @@ export function EditProfileDialog({
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<ProfileEdits>(() => fromUser(user));
   const [files, setFiles] = useState<Partial<Record<ImageField, File>>>({});
+  // The image being cropped (before it becomes the preview).
+  const [cropping, setCropping] = useState<{
+    field: ImageField;
+    src: string;
+  } | null>(null);
   const [imageError, setImageError] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string>();
@@ -157,8 +191,36 @@ export function EditProfileDialog({
 
   const name = form.displayName.trim();
   const nameError = name.length === 0 ? "Name can't be blank" : undefined;
+  // Username: check availability as you type (after a short pause).
+  const wantedUsername = form.username.trim().replace(/^@/, "");
+  const usernameChanged = wantedUsername !== user.username;
+  const [checkFor, setCheckFor] = useState(wantedUsername);
+  useEffect(() => {
+    const t = setTimeout(() => setCheckFor(wantedUsername), 350);
+    return () => clearTimeout(t);
+  }, [wantedUsername]);
+  const [{ data: check, fetching: checking }] = useQuery({
+    query: UsernameAvailableQuery,
+    variables: { username: checkFor },
+    pause: !usernameChanged || !checkFor,
+  });
+  const checked = check?.usernameAvailable && checkFor === wantedUsername;
+  const usernameError = !usernameChanged
+    ? undefined
+    : !wantedUsername
+      ? "Username can't be blank"
+      : checked && !check.usernameAvailable.available
+        ? (check.usernameAvailable.message ?? "That username isn't available.")
+        : undefined;
+  const usernameOk =
+    !usernameChanged || Boolean(checked && check.usernameAvailable.available);
+
   const valid =
-    !nameError && name.length <= NAME_MAX && (form.bio ?? "").length <= BIO_MAX;
+    !nameError &&
+    name.length <= NAME_MAX &&
+    (form.bio ?? "").length <= BIO_MAX &&
+    usernameOk &&
+    !checking;
   const initial = fromUser(user);
   const changed = (Object.keys(initial) as (keyof ProfileEdits)[]).some(
     (k) => (form[k] ?? "") !== (initial[k] ?? ""),
@@ -187,14 +249,28 @@ export function EditProfileDialog({
       setImageError("Please choose a JPG, PNG, WebP or GIF image.");
       return;
     }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setImageError("Images must be 5 MB or smaller.");
+    // Cropping resizes it, so large originals are fine; only refuse huge files.
+    if (file.size > MAX_ORIGINAL_BYTES) {
+      setImageError("That image is too large (max 25 MB).");
       return;
     }
     setImageError(undefined);
-    // Preview locally now; it's uploaded when you press Save.
+    setCropping({ field, src: URL.createObjectURL(file) });
+  }
+
+  /** The crop screen hands back the cropped file; preview it, upload on Save. */
+  function applyCrop(file: File) {
+    if (!cropping) return;
+    const { field, src } = cropping;
+    URL.revokeObjectURL(src);
     setForm((f) => ({ ...f, [field]: URL.createObjectURL(file) }));
     setFiles((f) => ({ ...f, [field]: file }));
+    setCropping(null);
+  }
+
+  function cancelCrop() {
+    if (cropping) URL.revokeObjectURL(cropping.src);
+    setCropping(null);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -211,6 +287,7 @@ export function EditProfileDialog({
     try {
       const failure = await onSave({
         displayName: name,
+        username: usernameChanged ? wantedUsername : undefined,
         bio: form.bio.trim(),
         avatarUrl: keep("avatarUrl"),
         bannerUrl: keep("bannerUrl"),
@@ -374,6 +451,26 @@ export function EditProfileDialog({
                   }
                 />
                 <Field
+                  label="Username"
+                  prefix="@"
+                  value={form.username}
+                  max={15}
+                  error={usernameError}
+                  success={
+                    usernameChanged &&
+                    checked &&
+                    check.usernameAvailable.available
+                      ? `@${wantedUsername} is available. Your profile link will change to /${wantedUsername}.`
+                      : undefined
+                  }
+                  onChange={(username) =>
+                    setForm((f) => ({
+                      ...f,
+                      username: username.replace(/\s/g, ""),
+                    }))
+                  }
+                />
+                <Field
                   label="Bio"
                   value={form.bio ?? ""}
                   max={BIO_MAX}
@@ -385,6 +482,12 @@ export function EditProfileDialog({
           </form>
         </DialogContent>
       </Dialog>
+      <ImageCropper
+        src={cropping?.src ?? null}
+        preset={cropping?.field === "bannerUrl" ? BANNER_CROP : AVATAR_CROP}
+        onApply={applyCrop}
+        onCancel={cancelCrop}
+      />
     </>
   );
 }

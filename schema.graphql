@@ -130,6 +130,7 @@ type Query {
   unreadMessageCount: Int!
   unreadNotificationCount: Int!
   user(username: String!): User
+  usernameAvailable(username: String!): UsernameCheck!
   whoToFollow(first: Int = 3): [User!]!
 }
 
@@ -266,6 +267,7 @@ input UpdateProfileInput {
   bannerUrl: String
   bio: String
   displayName: String!
+  username: String
 }
 
 type User {
@@ -339,4 +341,9 @@ type UserTweetsConnection {
 type UserTweetsConnectionEdge {
   cursor: String!
   node: Tweet!
+}
+
+type UsernameCheck {
+  available: Boolean!
+  message: String
 }

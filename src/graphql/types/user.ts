@@ -6,7 +6,17 @@ import { loadTimeline } from "../timeline";
 import { addTweetTypes, escapeLike } from "./tweet";
 import { prisma } from "@/lib/prisma";
 import { PROFILE_IMAGES_BUCKET } from "@/lib/storage";
-import { bioSchema, displayNameSchema } from "@/lib/validation";
+import { bioSchema, displayNameSchema, usernameSchema } from "@/lib/validation";
+import { Prisma } from "@/generated/prisma/client";
+
+/** Is this username used by anyone else (ignoring capitals)? */
+async function usernameTakenByOther(username: string, userId: string) {
+  const owner = await prisma.user.findFirst({
+    where: { username: { equals: username, mode: "insensitive" } },
+    select: { id: true },
+  });
+  return Boolean(owner && owner.id !== userId);
+}
 
 export function addUserTypes(
   builder: Builder,
@@ -123,7 +133,34 @@ export function addUserTypes(
     }),
   });
 
+  const UsernameCheck = builder
+    .objectRef<{ available: boolean; message: string | null }>("UsernameCheck")
+    .implement({
+      fields: (t) => ({
+        available: t.exposeBoolean("available"),
+        /** Why it can't be used (invalid, reserved or taken). */
+        message: t.exposeString("message", { nullable: true }),
+      }),
+    });
+
   builder.queryFields((t) => ({
+    /** Live check for the username field: is this name free for you to take? */
+    usernameAvailable: t.field({
+      type: UsernameCheck,
+      args: { username: t.arg.string({ required: true }) },
+      resolve: async (_root, args, ctx) => {
+        const me = requireUser(ctx);
+        const parsed = usernameSchema.safeParse(
+          args.username.replace(/^@/, ""),
+        );
+        if (!parsed.success)
+          return { available: false, message: parsed.error.issues[0].message };
+        if (await usernameTakenByOther(parsed.data, me)) {
+          return { available: false, message: "That username is taken." };
+        }
+        return { available: true, message: null };
+      },
+    }),
     /** Your likes, most recently liked first (not by when the chirp was posted). Private. */
     likedTweets: t.prismaConnection({
       type: "Like",
@@ -210,6 +247,8 @@ export function addUserTypes(
   const UpdateProfileInput = builder.inputType("UpdateProfileInput", {
     fields: (t) => ({
       displayName: t.string({ required: true }),
+      /** Leave out to keep your current username. */
+      username: t.string(),
       /** Empty or null clears it. */
       bio: t.string(),
       /** null removes the image. */
@@ -228,12 +267,14 @@ export function addUserTypes(
         const parsed = z
           .object({
             displayName: displayNameSchema,
+            username: usernameSchema.optional(),
             bio: bioSchema.nullable(),
             avatarUrl: ownImageUrl(userId).nullable(),
             bannerUrl: ownImageUrl(userId).nullable(),
           })
           .safeParse({
             displayName: input.displayName,
+            username: input.username?.replace(/^@/, "") || undefined,
             bio: input.bio?.trim() ? input.bio : null,
             avatarUrl: input.avatarUrl ?? null,
             bannerUrl: input.bannerUrl ?? null,
@@ -246,11 +287,31 @@ export function addUserTypes(
         });
         if (!exists) throw badInput("Finish setting up your profile first.");
 
-        return prisma.user.update({
-          ...query,
-          where: { id: userId },
-          data: parsed.data,
-        });
+        // New username: nobody else may have it, ignoring capitals.
+        // (Changing only the capitals of your own is fine.)
+        if (
+          parsed.data.username &&
+          (await usernameTakenByOther(parsed.data.username, userId))
+        ) {
+          throw badInput("That username is taken.");
+        }
+
+        try {
+          return await prisma.user.update({
+            ...query,
+            where: { id: userId },
+            data: parsed.data,
+          });
+        } catch (e) {
+          // Someone took it between our check and the save.
+          if (
+            e instanceof Prisma.PrismaClientKnownRequestError &&
+            e.code === "P2002"
+          ) {
+            throw badInput("That username is taken.");
+          }
+          throw e;
+        }
       },
     }),
     follow: t.prismaField({

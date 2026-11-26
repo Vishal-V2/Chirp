@@ -53,6 +53,7 @@ export function ProfileView({
       const result = await updateProfile({
         input: {
           displayName: edits.displayName,
+          username: edits.username,
           bio: edits.bio,
           avatarUrl,
           bannerUrl,
@@ -67,6 +68,10 @@ export function ProfileView({
       // Remove images that were replaced or removed (best effort).
       if (user.avatarUrl !== avatarUrl) void deleteProfileImage(user.avatarUrl);
       if (user.bannerUrl !== bannerUrl) void deleteProfileImage(user.bannerUrl);
+      // New username: the profile now lives at a new address.
+      if (edits.username && edits.username !== user.username) {
+        router.replace(`/${edits.username}`);
+      }
       // Refresh server-rendered parts (sidebar account button) with the new name/photo.
       router.refresh();
     } catch (e) {
