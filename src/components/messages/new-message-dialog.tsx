@@ -2,21 +2,27 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
 import { toast } from "sonner";
-import { useMutation, useQuery } from "urql";
+import { useMutation } from "urql";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { UserAvatar } from "@/components/user-avatar";
-import { useViewer } from "@/components/providers/viewer-provider";
-import { StartConversationMutation } from "@/graphql/client/messages";
-import { SearchUsersQuery } from "@/graphql/client/users";
+import {
+  CreateGroupMutation,
+  StartConversationMutation,
+} from "@/graphql/client/messages";
+import { PeoplePicker, type PickedPerson } from "./people-picker";
 
-/** Pick someone to message: search by name or @username. */
+/** Groups hold up to 20 people, you included (matches the server). */
+const MAX_OTHERS = 19;
+
+/**
+ * New message: pick one person for a 1-on-1 chat, or several (up to 19) for
+ * a group, with an optional group name.
+ */
 export function NewMessageDialog({
   open,
   onOpenChange,
@@ -25,99 +31,81 @@ export function NewMessageDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
-  const viewer = useViewer();
-  const [text, setText] = useState("");
-  const query = text.trim();
-  const [{ data, fetching }] = useQuery({
-    query: SearchUsersQuery,
-    variables: { query },
-    pause: !query,
-  });
+  const [picked, setPicked] = useState<PickedPerson[]>([]);
+  const [name, setName] = useState("");
   const [{ fetching: starting }, start] = useMutation(
     StartConversationMutation,
   );
-  const people = (data?.searchUsers ?? []).filter((u) => u.id !== viewer?.id);
+  const [{ fetching: creating }, createGroup] =
+    useMutation(CreateGroupMutation);
+  const busy = starting || creating;
+  const isGroup = picked.length >= 2;
 
-  async function open1to1(userId: string) {
-    const result = await start({ userId });
-    if (result.error || !result.data) {
+  function close() {
+    setPicked([]);
+    setName("");
+    onOpenChange(false);
+  }
+
+  async function go() {
+    const result = isGroup
+      ? await createGroup({
+          userIds: picked.map((p) => p.id),
+          name: name.trim() || null,
+        })
+      : await start({ userId: picked[0].id });
+    const id =
+      result.data &&
+      ("createGroup" in result.data
+        ? result.data.createGroup.id
+        : result.data.startConversation.id);
+    if (result.error || !id) {
       toast.error(
-        result.error?.graphQLErrors[0]?.message ??
-          "Couldn't open the conversation.",
+        result.error?.graphQLErrors[0]?.message ?? "Couldn't start the chat.",
       );
       return;
     }
-    onOpenChange(false);
-    router.push(`/messages/${result.data.startConversation.id}`);
+    close();
+    router.push(`/messages/${id}`);
   }
 
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => {
-        if (!next) setText("");
-        onOpenChange(next);
-      }}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
     >
-      <DialogContent className="flex max-h-[80dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md sm:rounded-2xl">
-        <div className="border-b px-4 pt-4 pb-3">
-          <DialogTitle className="font-heading text-xl font-bold tracking-tight">
-            New message
-          </DialogTitle>
-          <DialogDescription className="sr-only">
-            Search for a person to message.
-          </DialogDescription>
-          <label className="mt-3 flex h-10 items-center gap-2 rounded-full bg-muted px-3 text-muted-foreground focus-within:ring-2 focus-within:ring-primary">
-            <Search className="size-4" aria-hidden />
+      <DialogContent className="flex max-h-[85dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md sm:rounded-2xl">
+        <div className="flex items-center justify-between px-4 pt-4 pb-3">
+          <div>
+            <DialogTitle className="font-heading text-xl font-bold tracking-tight">
+              New message
+            </DialogTitle>
+            <DialogDescription className="text-[13px]">
+              Pick one person, or several to start a group (up to 20 people).
+            </DialogDescription>
+          </div>
+          <button
+            type="button"
+            disabled={picked.length === 0 || busy}
+            onClick={() => void go()}
+            className="pressable h-9 shrink-0 rounded-full bg-foreground px-4 text-sm font-bold text-background disabled:opacity-40"
+          >
+            {busy ? "Starting…" : isGroup ? "Create group" : "Chat"}
+          </button>
+        </div>
+        {isGroup && (
+          <div className="px-4 pb-3">
             <input
-              autoFocus
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Search people"
-              aria-label="Search people"
-              className="w-full bg-transparent text-[15px] text-foreground outline-none placeholder:text-muted-foreground"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={50}
+              placeholder="Group name (optional)"
+              aria-label="Group name"
+              className="h-10 w-full rounded-md border bg-transparent px-3 text-[15px] outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
-          </label>
-        </div>
-        <div className="min-h-40 overflow-y-auto py-1">
-          {!query ? (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              Type a name or @username.
-            </p>
-          ) : fetching && people.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              Searching…
-            </p>
-          ) : people.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              No one matches “{query}”.
-            </p>
-          ) : (
-            people.map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                disabled={starting}
-                onClick={() => void open1to1(u.id)}
-                className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/60 disabled:opacity-60"
-              >
-                <UserAvatar
-                  name={u.displayName}
-                  username={u.username}
-                  src={u.avatarUrl ?? undefined}
-                />
-                <span className="min-w-0 leading-tight">
-                  <span className="block truncate font-bold">
-                    {u.displayName}
-                  </span>
-                  <span className="block truncate text-sm text-muted-foreground">
-                    @{u.username}
-                  </span>
-                </span>
-              </button>
-            ))
-          )}
-        </div>
+          </div>
+        )}
+        <PeoplePicker picked={picked} onChange={setPicked} max={MAX_OTHERS} />
       </DialogContent>
     </Dialog>
   );

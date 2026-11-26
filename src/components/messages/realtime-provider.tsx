@@ -12,6 +12,8 @@ export type LiveMessage = {
   mediaPaths: string[];
   /** Set when the sender unsent it. */
   deletedAt?: string | null;
+  /** A group event note ("Ada added Sam"). */
+  systemText?: string | null;
   /** True for a change to an existing message (an unsend), not a new one. */
   edited?: boolean;
   createdAt: string;

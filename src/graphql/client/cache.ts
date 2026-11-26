@@ -119,6 +119,8 @@ export const graphcache = cacheExchange({
     Like: embedded,
     // A follow link has no id of its own; it lives inside its list.
     Follow: embedded,
+    // A chat member has no id of its own; it lives inside its conversation.
+    ConversationParticipant: embedded,
     ...Object.fromEntries(
       CONNECTION_TYPES.flatMap((t) => [
         [t, embedded],
@@ -230,6 +232,21 @@ export const graphcache = cacheExchange({
           "conversations",
           "unreadMessageCount",
         ]);
+      },
+      // Groups: the inbox list changes; leaving also drops the chat.
+      createGroup: (_r, _a, cache) =>
+        invalidateFields(cache, "Query", ["conversations"]),
+      leaveGroup(_result, args, cache) {
+        invalidateFields(cache, "Query", [
+          "conversations",
+          "unreadMessageCount",
+          "messageRequests",
+          "messageRequestCount",
+        ]);
+        cache.invalidate({
+          __typename: "Conversation",
+          id: String(args.conversationId),
+        });
       },
       acceptMessageRequest(_result, _args, cache) {
         invalidateFields(cache, "Query", [

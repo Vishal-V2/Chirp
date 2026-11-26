@@ -6,12 +6,12 @@ import { Image as ImageIcon, RotateCcw, SendHorizontal, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMutation, useQuery } from "urql";
 import { BackButton } from "@/components/layout/back-button";
-import { UserAvatar } from "@/components/user-avatar";
 import { useViewer } from "@/components/providers/viewer-provider";
 import type { MessageFieldsFragment } from "@/generated/gql/graphql";
 import {
   ConversationQuery,
   DeleteMessageForMeMutation,
+  DmPolicyQuery,
   MarkConversationReadMutation,
   UnsendMessageMutation,
   SendMessageMutation,
@@ -22,6 +22,7 @@ import { useTyping } from "./use-typing";
 import { MessageImages } from "./message-images";
 import { MessageActions } from "./message-actions";
 import { RequestBar } from "./request-bar";
+import { ChatAvatar, chatTitle, othersIn } from "./chat-identity";
 import { toast } from "sonner";
 import { IMAGE_TYPES } from "@/lib/storage";
 import {
@@ -93,7 +94,7 @@ function TypingBubble({ name }: { name: string }) {
         ))}
       </span>
       <span className="text-[13px] text-muted-foreground">
-        {name} is typing…
+        {name} {name.includes(",") ? "are" : "is"} typing…
       </span>
     </motion.div>
   );
@@ -103,7 +104,7 @@ function TypingBubble({ name }: { name: string }) {
 export function ChatView({ conversationId }: { conversationId: string }) {
   const viewer = useViewer()!;
   const [first, setFirst] = useState(PAGE);
-  const [{ data, error }] = useQuery({
+  const [{ data, error }, reexecute] = useQuery({
     query: ConversationQuery,
     variables: { id: conversationId, first },
   });
@@ -113,8 +114,14 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   const [, deleteForMe] = useMutation(DeleteMessageForMeMutation);
   // Messages you deleted for yourself (hidden at once; the server agrees later).
   const [hidden, setHidden] = useState<Set<string>>(() => new Set());
-  const { otherTyping, notifyTyping, notifyStopped, clearOtherTyping } =
-    useTyping(conversationId, viewer.id);
+  // Someone read the chat: refresh "Seen".
+  const { typers, notifyTyping, notifyStopped, notifyRead, clearTyper } =
+    useTyping(conversationId, viewer.id, () =>
+      reexecute({ requestPolicy: "network-only" }),
+    );
+  const otherTyping = typers.length > 0;
+  const [{ data: settings }] = useQuery({ query: DmPolicyQuery });
+  const receiptsOn = settings?.me?.readReceipts ?? false;
 
   // Messages that arrived live or that you sent, until the next refetch includes them.
   const [extra, setExtra] = useState<ChatMessage[]>([]);
@@ -124,6 +131,18 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const conversation = data?.conversation;
   const other = conversation?.otherParticipant;
+  const isGroup = conversation?.isGroup ?? false;
+  const title = conversation ? chatTitle(conversation, viewer.id) : "";
+  const nameOf = (userId: string) =>
+    conversation?.participants.find((p) => p.user.id === userId)?.user
+      .displayName ?? "Someone";
+
+  /** Mark the chat read, and (if your receipts are on) tell the others. */
+  function readNow() {
+    void markRead({ conversationId }).then(() => {
+      if (receiptsOn) notifyRead();
+    });
+  }
 
   const messages = useMemo(() => {
     const byId = new Map<string, ChatMessage>();
@@ -142,12 +161,16 @@ export function ChatView({ conversationId }: { conversationId: string }) {
 
   // Mark as read when opened (and again when their messages arrive).
   useEffect(() => {
-    if (conversation) void markRead({ conversationId });
-  }, [conversation?.id, conversationId, markRead]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (conversation) readNow();
+  }, [conversation?.id, conversationId, receiptsOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLiveMessages((m) => {
     if (m.conversationId !== conversationId) return;
-    const live: ChatMessage = { ...m, deletedAt: m.deletedAt ?? null };
+    const live: ChatMessage = {
+      ...m,
+      deletedAt: m.deletedAt ?? null,
+      systemText: m.systemText ?? null,
+    };
     // An unsend replaces the message; a new message is added once.
     setExtra((list) =>
       m.edited
@@ -157,12 +180,40 @@ export function ChatView({ conversationId }: { conversationId: string }) {
           : [...list, live],
     );
     if (m.edited) return;
+    // Group changes (added, renamed…): refresh members and name.
+    if (m.systemText) reexecute({ requestPolicy: "network-only" });
     if (m.senderId !== viewer.id) {
-      clearOtherTyping();
-      if (document.visibilityState === "visible")
-        void markRead({ conversationId });
+      clearTyper(m.senderId);
+      if (document.visibilityState === "visible") readNow();
     }
   });
+
+  // "Seen": under your latest message, who has read up to it (only people
+  // with read receipts on; the server leaves the rest out).
+  const lastMine = [...messages]
+    .reverse()
+    .find((m) => m.senderId === viewer.id && !m.status && !m.systemText);
+  const lastMineId = lastMine?.id;
+  const seenNames =
+    lastMine && conversation
+      ? conversation.participants
+          .filter(
+            (p) =>
+              p.user.id !== viewer.id &&
+              p.seenAt &&
+              p.seenAt >= lastMine.createdAt,
+          )
+          .map((p) => p.user.displayName.split(" ")[0])
+      : [];
+  const seenLabel =
+    seenNames.length === 0
+      ? ""
+      : !isGroup
+        ? "Seen"
+        : conversation &&
+            seenNames.length === othersIn(conversation, viewer.id).length
+          ? "Seen by everyone"
+          : `Seen by ${seenNames.join(", ")}`;
 
   // Keep the newest message in view (unless you've scrolled up to read history).
   const bottom = useRef<HTMLDivElement>(null);
@@ -246,6 +297,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
         content,
         mediaPaths: [],
         deletedAt: null,
+        systemText: null,
         previews,
         files,
         createdAt: new Date().toISOString(),
@@ -329,34 +381,39 @@ export function ChatView({ conversationId }: { conversationId: string }) {
     <div className="flex min-h-[calc(100dvh-3.5rem)] flex-col sm:min-h-dvh">
       <header className="sticky top-0 z-10 flex h-[53px] items-center gap-3 border-b bg-background/85 px-4 backdrop-blur-md">
         <BackButton />
-        {other && (
-          <Link
-            href={`/${other.username}`}
-            className="flex min-w-0 items-center gap-3"
-          >
-            <UserAvatar
-              name={other.displayName}
-              username={other.username}
-              src={other.avatarUrl ?? undefined}
-              className="size-8"
-            />
-            <span className="min-w-0 leading-tight">
-              <span className="block truncate font-heading font-bold">
-                {other.displayName}
-              </span>
-              <span className="block truncate text-[13px] text-muted-foreground">
-                {otherTyping ? "typing…" : `@${other.username}`}
-              </span>
+        <Link
+          href={
+            isGroup ? `/messages/${conversationId}/info` : `/${other?.username}`
+          }
+          className="flex min-w-0 items-center gap-3"
+        >
+          <ChatAvatar
+            chat={conversation}
+            viewerId={viewer.id}
+            className="size-8"
+          />
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate font-heading font-bold">
+              {title}
             </span>
-          </Link>
-        )}
+            <span className="block truncate text-[13px] text-muted-foreground">
+              {typers.length > 0
+                ? isGroup
+                  ? `${typers.map((id) => nameOf(id).split(" ")[0]).join(", ")} ${typers.length === 1 ? "is" : "are"} typing…`
+                  : "typing…"
+                : isGroup
+                  ? `${conversation.participants.length} members`
+                  : `@${other?.username}`}
+            </span>
+          </span>
+        </Link>
       </header>
 
       <div
         className="flex-1 pt-3"
         role="log"
         aria-live="polite"
-        aria-label={`Conversation with ${other?.displayName}`}
+        aria-label={`Conversation: ${title}`}
       >
         {conversation.messages.pageInfo.hasNextPage && (
           <button
@@ -369,12 +426,24 @@ export function ChatView({ conversationId }: { conversationId: string }) {
         )}
         {messages.length === 0 && !otherTyping && (
           <p className="fade-up px-8 py-16 text-center text-muted-foreground">
-            Say hi to {other?.displayName}. They&apos;ll see it the moment you
-            send it.
+            Say hi to {title}. They&apos;ll see it the moment you send it.
           </p>
         )}
         <AnimatePresence initial={false}>
           {messages.map((m, i) => {
+            if (m.systemText) {
+              return (
+                <motion.p
+                  key={m.id}
+                  layout="position"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="px-8 py-2 text-center text-[13px] text-muted-foreground"
+                >
+                  {m.systemText}
+                </motion.p>
+              );
+            }
             const prev = messages[i - 1];
             const next = messages[i + 1];
             const mine = m.senderId === viewer.id;
@@ -407,11 +476,16 @@ export function ChatView({ conversationId }: { conversationId: string }) {
                     {dayLabel(m.createdAt)}
                   </p>
                 )}
+                {isGroup && !mine && !sameAsPrev && (
+                  <p className="px-5 pt-2 text-xs font-semibold text-muted-foreground">
+                    {nameOf(m.senderId)}
+                  </p>
+                )}
                 <div
                   className={cn(
                     "flex px-4",
                     mine ? "justify-end" : "justify-start",
-                    sameAsPrev ? "pt-0.5" : "pt-2",
+                    sameAsPrev || (isGroup && !mine) ? "pt-0.5" : "pt-2",
                   )}
                 >
                   <MessageActions
@@ -479,6 +553,9 @@ export function ChatView({ conversationId }: { conversationId: string }) {
                       suppressHydrationWarning
                     >
                       {m.status === "sending" ? "Sending…" : time(m.createdAt)}
+                      {m.id === lastMineId && seenLabel && (
+                        <span className="font-medium"> · {seenLabel}</span>
+                      )}
                     </p>
                   )
                 )}
@@ -487,19 +564,29 @@ export function ChatView({ conversationId }: { conversationId: string }) {
           })}
         </AnimatePresence>
         <AnimatePresence>
-          {otherTyping && other && (
-            <TypingBubble key="typing" name={other.displayName} />
+          {otherTyping && (
+            <TypingBubble
+              key="typing"
+              name={typers.map((id) => nameOf(id).split(" ")[0]).join(", ")}
+            />
           )}
         </AnimatePresence>
         <div ref={bottom} className="h-2" />
       </div>
 
       {conversation.isRequest &&
-        other &&
-        !other.viewerHasBlocked &&
-        !other.blocksViewer && (
-          <RequestBar conversationId={conversationId} other={other} />
-        )}
+        (isGroup ? (
+          <RequestBar
+            conversationId={conversationId}
+            group={{ title, addedBy: nameOf(conversation.createdById ?? "") }}
+          />
+        ) : (
+          other &&
+          !other.viewerHasBlocked &&
+          !other.blocksViewer && (
+            <RequestBar conversationId={conversationId} other={other} />
+          )
+        ))}
       {other?.viewerHasBlocked || other?.blocksViewer ? (
         <p className="sticky bottom-14 z-10 border-t bg-background/95 px-4 py-4 text-center text-[15px] text-muted-foreground backdrop-blur-md sm:bottom-0">
           {other.viewerHasBlocked

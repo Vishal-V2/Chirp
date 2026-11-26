@@ -56,14 +56,18 @@ export async function GET(request: NextRequest) {
       for (const bucket of [PROFILE_IMAGES_BUCKET, CHIRP_MEDIA_BUCKET]) {
         await removeFolder(admin, bucket, id);
       }
-      // 2. Whole conversations with them (the other person's side too, so
-      //    nobody is left with a chat that has no one on the other end),
-      //    including every photo sent in them.
+      // 2. 1-on-1 chats with them are deleted whole (the other person's side
+      //    too, so nobody is left talking to no one), with every photo in them.
+      //    In groups only their own photos go; the group carries on.
       const chats = await prisma.conversation.findMany({
         where: { participants: { some: { userId: id } } },
-        select: { id: true },
+        select: { id: true, isGroup: true },
       });
       for (const chat of chats) {
+        if (chat.isGroup) {
+          await removeFolder(admin, MESSAGE_MEDIA_BUCKET, `${chat.id}/${id}`);
+          continue;
+        }
         const { data: senders, error } = await admin.storage
           .from(MESSAGE_MEDIA_BUCKET)
           .list(chat.id, { limit: 100 });
@@ -77,7 +81,7 @@ export async function GET(request: NextRequest) {
         }
       }
       await prisma.conversation.deleteMany({
-        where: { id: { in: chats.map((c) => c.id) } },
+        where: { id: { in: chats.filter((c) => !c.isGroup).map((c) => c.id) } },
       });
       // 3. Their login. A database trigger then deletes their profile, which
       //    removes their chirps, likes, follows, notifications and the rest.

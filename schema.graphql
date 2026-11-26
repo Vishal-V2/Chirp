@@ -4,11 +4,17 @@ type Bookmark {
 }
 
 type Conversation {
+  createdById: ID
   id: ID!
+  isGroup: Boolean!
   isRequest: Boolean!
   lastMessage: Message
   messages(after: String, before: String, first: Int, last: Int): ConversationMessagesConnection!
-  otherParticipant: User!
+  myRole: ParticipantRole!
+  name: String
+  otherParticipant: User
+  participants: [ConversationParticipant!]!
+  photoPath: String
   unreadCount: Int!
   updatedAt: DateTime!
 }
@@ -21,6 +27,12 @@ type ConversationMessagesConnection {
 type ConversationMessagesConnectionEdge {
   cursor: String!
   node: Message!
+}
+
+type ConversationParticipant {
+  role: ParticipantRole!
+  seenAt: DateTime
+  user: User!
 }
 
 """
@@ -54,26 +66,33 @@ type Message {
   mediaPaths: [String!]!
   sender: User!
   senderId: ID!
+  systemText: String
 }
 
 type Mutation {
   acceptMessageRequest(conversationId: ID!): Conversation!
+  addGroupMembers(conversationId: ID!, userIds: [ID!]!): Conversation!
   block(userId: ID!): User!
   bookmarkTweet(id: ID!): Tweet!
+  createGroup(name: String, userIds: [ID!]!): Conversation!
   createThread(parts: [ThreadPartInput!]!): Tweet!
   createTweet(content: String!, location: String, mediaUrls: [String!], parentId: ID, poll: PollInput, quotedId: ID): Tweet!
   deleteMessageForMe(id: ID!): ID!
   deleteMessageRequest(conversationId: ID!): ID!
   deleteTweet(id: ID!): Boolean!
   follow(userId: ID!): User!
+  leaveGroup(conversationId: ID!): ID!
   likeTweet(id: ID!): Tweet!
   markConversationRead(conversationId: ID!): Conversation!
   markNotificationsRead: Int!
   mute(userId: ID!): User!
   pinTweet(id: ID!): [Tweet!]!
+  removeGroupMember(conversationId: ID!, userId: ID!): Conversation!
   retweet(id: ID!): Tweet!
   sendMessage(content: String!, conversationId: ID!, mediaPaths: [String!]): Message!
   setDmPolicy(policy: DmPolicy!): User!
+  setGroupAdmin(admin: Boolean!, conversationId: ID!, userId: ID!): Conversation!
+  setReadReceipts(on: Boolean!): User!
   startConversation(userId: ID!): Conversation!
   unblock(userId: ID!): User!
   unbookmarkTweet(id: ID!): Tweet!
@@ -83,6 +102,7 @@ type Mutation {
   unpinTweet(id: ID!): [Tweet!]!
   unretweet(id: ID!): Tweet!
   unsendMessage(id: ID!): Message!
+  updateGroup(conversationId: ID!, name: String, photoPath: String): Conversation!
   updateProfile(input: UpdateProfileInput!): User!
   votePoll(optionId: ID!): Poll!
 }
@@ -110,6 +130,11 @@ type PageInfo {
   hasNextPage: Boolean!
   hasPreviousPage: Boolean!
   startCursor: String
+}
+
+enum ParticipantRole {
+  ADMIN
+  MEMBER
 }
 
 type Poll {
@@ -321,6 +346,7 @@ type User {
   followsViewer: Boolean!
   id: ID!
   media(after: String, before: String, first: Int, last: Int): UserMediaConnection!
+  readReceipts: Boolean
   replies(after: String, before: String, first: Int, last: Int): UserRepliesConnection!
   timeline(after: String, before: String, first: Int, last: Int): UserTimelineConnection!
   tweetCount: Int!

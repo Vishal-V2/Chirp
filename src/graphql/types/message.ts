@@ -21,14 +21,16 @@ const requestsWhere = (me: string) => ({
   participants: {
     some: { userId: me, acceptedAt: null, requestHiddenAt: null },
   },
+  // 1-on-1s with a deactivated account are hidden until they return.
   NOT: {
+    isGroup: false,
     participants: { some: { user: { deactivatedAt: { not: null } } } },
   },
   messages: { some: { deletedAt: null } },
 });
 
 /** Does `a` follow `b`? */
-async function follows(a: string, b: string) {
+export async function follows(a: string, b: string) {
   return (
     (await prisma.follow.count({ where: { followerId: a, followingId: b } })) >
     0
@@ -45,7 +47,7 @@ async function follows(a: string, b: string) {
  */
 
 /** Does `recipient` take messages from `sender` straight into their inbox? */
-async function goesToInbox(sender: string, recipient: string) {
+export async function goesToInbox(sender: string, recipient: string) {
   const { dmPolicy } = await prisma.user.findUniqueOrThrow({
     where: { id: recipient },
     select: { dmPolicy: true },
@@ -54,7 +56,7 @@ async function goesToInbox(sender: string, recipient: string) {
 }
 
 /** Throws unless `other`'s setting lets `me` write to them at all. */
-async function assertCanMessage(
+export async function assertCanMessage(
   me: string,
   other: string,
   conversationId?: string,
@@ -79,16 +81,48 @@ async function assertCanMessage(
 }
 
 /** Throws unless the signed-in user is in this conversation. */
-async function requireParticipant(conversationId: string, userId: string) {
+export async function requireParticipant(
+  conversationId: string,
+  userId: string,
+) {
   const p = await prisma.conversationParticipant.findUnique({
     where: { conversationId_userId: { conversationId, userId } },
-    select: { lastReadAt: true, acceptedAt: true },
+    select: { lastReadAt: true, acceptedAt: true, role: true },
   });
   if (!p) throw notFound("This conversation doesn't exist.");
   return p;
 }
 
 export function addMessageTypes(builder: Builder) {
+  const ParticipantRole = builder.enumType("ParticipantRole", {
+    values: ["MEMBER", "ADMIN"] as const,
+  });
+
+  /** Someone in a chat. */
+  builder.prismaObject("ConversationParticipant", {
+    fields: (t) => ({
+      user: t.relation("user"),
+      role: t.expose("role", { type: ParticipantRole }),
+      /**
+       * When they last read the chat ("Seen"). Only shared when both you and
+       * they have read receipts on; null otherwise.
+       */
+      seenAt: t.field({
+        type: "DateTime",
+        nullable: true,
+        select: { lastReadAt: true, user: { select: { readReceipts: true } } },
+        resolve: async (p, _args, ctx) => {
+          if (!ctx.userId || !p.user.readReceipts || !p.lastReadAt) return null;
+          const me = await prisma.user.findUnique({
+            where: { id: ctx.userId },
+            select: { readReceipts: true },
+          });
+          return me?.readReceipts ? p.lastReadAt : null;
+        },
+      }),
+    }),
+  });
+
   const DmPolicy = builder.enumType("DmPolicy", {
     values: ["EVERYONE", "FOLLOWING", "NOBODY"] as const,
   });
@@ -100,6 +134,12 @@ export function addMessageTypes(builder: Builder) {
       nullable: true,
       resolve: (user, _args, ctx) =>
         user.id === ctx.userId ? user.dmPolicy : null,
+    }),
+    /** Your own read-receipts setting (null on other people). */
+    readReceipts: t.boolean({
+      nullable: true,
+      resolve: (user, _args, ctx) =>
+        user.id === ctx.userId ? user.readReceipts : null,
     }),
     /** Can you message this person (their setting, blocks, existing chat)? */
     canMessage: t.boolean({
@@ -129,6 +169,8 @@ export function addMessageTypes(builder: Builder) {
       mediaPaths: t.exposeStringList("mediaPaths"),
       /** Set when the sender unsent it ("This message was deleted"). */
       deletedAt: t.expose("deletedAt", { type: "DateTime", nullable: true }),
+      /** A group event ("Ada added Sam") shown as a note, not a bubble. */
+      systemText: t.exposeString("systemText", { nullable: true }),
       createdAt: t.expose("createdAt", { type: "DateTime" }),
       conversationId: t.exposeID("conversationId"),
       senderId: t.exposeID("senderId"),
@@ -146,11 +188,29 @@ export function addMessageTypes(builder: Builder) {
           !(await requireParticipant(conversation.id, requireUser(ctx)))
             .acceptedAt,
       }),
-      /** The person you're talking to. */
+      isGroup: t.exposeBoolean("isGroup"),
+      /** Group name (null = show the members' names). */
+      name: t.exposeString("name", { nullable: true }),
+      /** Group photo path in the private message-media bucket. */
+      photoPath: t.exposeString("photoPath", { nullable: true }),
+      createdById: t.exposeID("createdById", { nullable: true }),
+      /** Everyone in the chat, you included (admins first). */
+      participants: t.relation("participants", {
+        query: { orderBy: [{ role: "desc" }, { userId: "asc" }] },
+      }),
+      /** Your role in a group (MEMBER for 1-on-1s). */
+      myRole: t.field({
+        type: ParticipantRole,
+        resolve: async (conversation, _args, ctx) =>
+          (await requireParticipant(conversation.id, requireUser(ctx))).role,
+      }),
+      /** The person you're talking to (null in groups). */
       otherParticipant: t.prismaField({
         type: "User",
+        nullable: true,
         resolve: async (query, conversation, _args, ctx) => {
           const me = requireUser(ctx);
+          if (conversation.isGroup) return null;
           const other = await prisma.conversationParticipant.findFirst({
             where: { conversationId: conversation.id, userId: { not: me } },
             select: { userId: true },
@@ -185,6 +245,7 @@ export function addMessageTypes(builder: Builder) {
               conversationId: conversation.id,
               senderId: { not: me },
               deletedAt: null,
+              systemText: null,
               hiddenFor: { none: { userId: me } },
               ...(lastReadAt && { createdAt: { gt: lastReadAt } }),
             },
@@ -216,6 +277,7 @@ export function addMessageTypes(builder: Builder) {
             participants: { some: { userId: me, acceptedAt: { not: null } } },
             // Chats with a deactivated account are hidden until they return.
             NOT: {
+              isGroup: false,
               participants: {
                 some: { user: { deactivatedAt: { not: null } } },
               },
@@ -273,6 +335,7 @@ export function addMessageTypes(builder: Builder) {
           where: {
             senderId: { not: ctx.userId },
             deletedAt: null,
+            systemText: null,
             hiddenFor: { none: { userId: ctx.userId } },
             OR: mine.map((p) => ({
               conversationId: p.conversationId,
@@ -335,16 +398,25 @@ export function addMessageTypes(builder: Builder) {
         const me = requireUser(ctx);
         const conversationId = String(args.conversationId);
         const mine = await requireParticipant(conversationId, me);
-        // No messages across a block (the conversation stays readable).
-        const other = await prisma.conversationParticipant.findFirst({
-          where: { conversationId, userId: { not: me } },
-          select: { userId: true, acceptedAt: true },
+        const { isGroup } = await prisma.conversation.findUniqueOrThrow({
+          where: { id: conversationId },
+          select: { isGroup: true },
         });
-        await assertNotWalled(
-          me,
-          other?.userId,
-          "You can't message this account.",
-        );
+        // 1-on-1s: no messages across a block (the chat stays readable), and
+        // message-request rules apply. Groups: just be a member.
+        const other = isGroup
+          ? null
+          : await prisma.conversationParticipant.findFirst({
+              where: { conversationId, userId: { not: me } },
+              select: { userId: true, acceptedAt: true },
+            });
+        if (other) {
+          await assertNotWalled(
+            me,
+            other.userId,
+            "You can't message this account.",
+          );
+        }
         const parsed = messageText.safeParse(args.content);
         if (!parsed.success) throw badInput(parsed.error.issues[0].message);
         const mediaPaths = args.mediaPaths ?? [];
@@ -524,6 +596,17 @@ export function addMessageTypes(builder: Builder) {
         });
         return conversationId;
       },
+    }),
+    /** Settings → Who can message you → Read receipts. */
+    setReadReceipts: t.prismaField({
+      type: "User",
+      args: { on: t.arg.boolean({ required: true }) },
+      resolve: (query, _root, args, ctx) =>
+        prisma.user.update({
+          ...query,
+          where: { id: requireUser(ctx) },
+          data: { readReceipts: args.on },
+        }),
     }),
     /** Settings → Privacy and safety → "Allow messages from". */
     setDmPolicy: t.prismaField({

@@ -6,6 +6,7 @@ export const MessageFieldsFragment = graphql(`
     content
     mediaPaths
     deletedAt
+    systemText
     createdAt
     conversationId
     senderId
@@ -18,6 +19,17 @@ export const ConversationsQuery = graphql(`
       id
       updatedAt
       unreadCount
+      isGroup
+      name
+      photoPath
+      participants {
+        user {
+          id
+          username
+          displayName
+          avatarUrl
+        }
+      }
       otherParticipant {
         id
         username
@@ -29,6 +41,7 @@ export const ConversationsQuery = graphql(`
         content
         mediaPaths
         deletedAt
+        systemText
         createdAt
         senderId
       }
@@ -41,6 +54,21 @@ export const ConversationQuery = graphql(`
     conversation(id: $id) {
       id
       isRequest
+      isGroup
+      name
+      photoPath
+      myRole
+      createdById
+      participants {
+        role
+        seenAt
+        user {
+          id
+          username
+          displayName
+          avatarUrl
+        }
+      }
       otherParticipant {
         id
         username
@@ -108,6 +136,14 @@ export const PingSenderQuery = graphql(`
     conversation(id: $id) {
       id
       isRequest
+      isGroup
+      name
+      participants {
+        user {
+          id
+          displayName
+        }
+      }
       otherParticipant {
         id
         username
@@ -141,6 +177,17 @@ export const MessageRequestsQuery = graphql(`
       id
       updatedAt
       unreadCount
+      isGroup
+      name
+      photoPath
+      participants {
+        user {
+          id
+          username
+          displayName
+          avatarUrl
+        }
+      }
       otherParticipant {
         id
         username
@@ -152,6 +199,7 @@ export const MessageRequestsQuery = graphql(`
         content
         mediaPaths
         deletedAt
+        systemText
         createdAt
         senderId
       }
@@ -186,6 +234,7 @@ export const DmPolicyQuery = graphql(`
     me {
       id
       dmPolicy
+      readReceipts
     }
   }
 `);
@@ -195,6 +244,144 @@ export const SetDmPolicyMutation = graphql(`
     setDmPolicy(policy: $policy) {
       id
       dmPolicy
+    }
+  }
+`);
+
+export const SetReadReceiptsMutation = graphql(`
+  mutation SetReadReceipts($on: Boolean!) {
+    setReadReceipts(on: $on) {
+      id
+      readReceipts
+    }
+  }
+`);
+
+/** Seen-by info for a chat, refetched when someone reads it. */
+export const ChatSeenQuery = graphql(`
+  query ChatSeen($id: ID!) {
+    conversation(id: $id) {
+      id
+      participants {
+        seenAt
+        user {
+          id
+        }
+      }
+    }
+  }
+`);
+
+export const CreateGroupMutation = graphql(`
+  mutation CreateGroup($userIds: [ID!]!, $name: String) {
+    createGroup(userIds: $userIds, name: $name) {
+      id
+    }
+  }
+`);
+
+export const AddGroupMembersMutation = graphql(`
+  mutation AddGroupMembers($conversationId: ID!, $userIds: [ID!]!) {
+    addGroupMembers(conversationId: $conversationId, userIds: $userIds) {
+      id
+      participants {
+        role
+        seenAt
+        user {
+          id
+          username
+          displayName
+          avatarUrl
+        }
+      }
+    }
+  }
+`);
+
+export const RemoveGroupMemberMutation = graphql(`
+  mutation RemoveGroupMember($conversationId: ID!, $userId: ID!) {
+    removeGroupMember(conversationId: $conversationId, userId: $userId) {
+      id
+      participants {
+        role
+        seenAt
+        user {
+          id
+          username
+          displayName
+          avatarUrl
+        }
+      }
+    }
+  }
+`);
+
+export const SetGroupAdminMutation = graphql(`
+  mutation SetGroupAdmin($conversationId: ID!, $userId: ID!, $admin: Boolean!) {
+    setGroupAdmin(
+      conversationId: $conversationId
+      userId: $userId
+      admin: $admin
+    ) {
+      id
+      participants {
+        role
+        seenAt
+        user {
+          id
+          username
+          displayName
+          avatarUrl
+        }
+      }
+    }
+  }
+`);
+
+export const UpdateGroupMutation = graphql(`
+  mutation UpdateGroup(
+    $conversationId: ID!
+    $name: String
+    $photoPath: String
+  ) {
+    updateGroup(
+      conversationId: $conversationId
+      name: $name
+      photoPath: $photoPath
+    ) {
+      id
+      name
+      photoPath
+    }
+  }
+`);
+
+export const LeaveGroupMutation = graphql(`
+  mutation LeaveGroup($conversationId: ID!) {
+    leaveGroup(conversationId: $conversationId)
+  }
+`);
+
+/** Group info page. */
+export const GroupInfoQuery = graphql(`
+  query GroupInfo($id: ID!) {
+    conversation(id: $id) {
+      id
+      isGroup
+      name
+      photoPath
+      myRole
+      createdById
+      participants {
+        role
+        seenAt
+        user {
+          id
+          username
+          displayName
+          avatarUrl
+        }
+      }
     }
   }
 `);

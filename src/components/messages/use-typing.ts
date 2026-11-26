@@ -8,20 +8,36 @@ const SEND_EVERY_MS = 2000; // don't flood the socket while someone types
 const SHOW_FOR_MS = 3500; // hide "typing…" if no new signal arrives
 
 /**
- * "Typing…" indicators over a private Supabase Realtime broadcast channel
- * (WebSocket); only the conversation's two participants can join it.
- * Nothing is stored; it's just a short-lived signal between the two people.
+ * Live signals for one chat over a private Supabase Realtime broadcast
+ * channel (WebSocket); only the chat's participants can join it. Nothing is
+ * stored; they're short-lived signals:
+ *   - "typing": who's typing right now (several people, in groups);
+ *   - "read":   someone just read the chat, so "Seen" can update.
  */
-export function useTyping(conversationId: string, myId: string) {
-  const [otherTyping, setOtherTyping] = useState(false);
+export function useTyping(
+  conversationId: string,
+  myId: string,
+  onRead?: (userId: string) => void,
+) {
+  // Ids of the people typing now.
+  const [typers, setTypers] = useState<string[]>([]);
   const channel = useRef<RealtimeChannel | null>(null);
   const lastSent = useRef(0);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const readCallback = useRef(onRead);
+  useEffect(() => {
+    readCallback.current = onRead;
+  });
+
+  const stopShowing = useCallback((userId: string) => {
+    clearTimeout(timers.current.get(userId));
+    timers.current.delete(userId);
+    setTypers((list) => list.filter((id) => id !== userId));
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
+    const pending = timers.current;
     let ch: RealtimeChannel | undefined;
     let cancelled = false;
 
@@ -37,17 +53,23 @@ export function useTyping(conversationId: string, myId: string) {
           config: { private: true, broadcast: { self: false } },
         })
         .on("broadcast", { event: "typing" }, ({ payload }) => {
-          if (payload?.userId === myId) return;
-          clearTimeout(hideTimer.current);
-          if (payload?.stopped) {
-            setOtherTyping(false);
-            return;
-          }
-          setOtherTyping(true);
-          hideTimer.current = setTimeout(
-            () => setOtherTyping(false),
-            SHOW_FOR_MS,
+          const userId = payload?.userId;
+          if (typeof userId !== "string" || userId === myId) return;
+          if (payload?.stopped) return stopShowing(userId);
+          clearTimeout(pending.get(userId));
+          setTypers((list) =>
+            list.includes(userId) ? list : [...list, userId],
           );
+          pending.set(
+            userId,
+            setTimeout(() => stopShowing(userId), SHOW_FOR_MS),
+          );
+        })
+        .on("broadcast", { event: "read" }, ({ payload }) => {
+          const userId = payload?.userId;
+          if (typeof userId === "string" && userId !== myId) {
+            readCallback.current?.(userId);
+          }
         })
         .subscribe();
       channel.current = ch;
@@ -55,11 +77,12 @@ export function useTyping(conversationId: string, myId: string) {
 
     return () => {
       cancelled = true;
-      clearTimeout(hideTimer.current);
+      pending.forEach(clearTimeout);
+      pending.clear();
       channel.current = null;
       if (ch) void supabase.removeChannel(ch);
     };
-  }, [conversationId, myId]);
+  }, [conversationId, myId, stopShowing]);
 
   /** Call on every keystroke; it's throttled. */
   const notifyTyping = useCallback(() => {
@@ -73,7 +96,7 @@ export function useTyping(conversationId: string, myId: string) {
     });
   }, [myId]);
 
-  /** Call after sending or clearing the box, so the other side hides it at once. */
+  /** Call after sending or clearing the box, so others hide it at once. */
   const notifyStopped = useCallback(() => {
     lastSent.current = 0;
     void channel.current?.send({
@@ -83,11 +106,23 @@ export function useTyping(conversationId: string, myId: string) {
     });
   }, [myId]);
 
-  /** Hide right away when their message lands. */
-  const clearOtherTyping = useCallback(() => {
-    clearTimeout(hideTimer.current);
-    setOtherTyping(false);
-  }, []);
+  /** Tell the others you've just read the chat (only if receipts are on). */
+  const notifyRead = useCallback(() => {
+    void channel.current?.send({
+      type: "broadcast",
+      event: "read",
+      payload: { userId: myId },
+    });
+  }, [myId]);
 
-  return { otherTyping, notifyTyping, notifyStopped, clearOtherTyping };
+  return {
+    typers,
+    /** Kept for 1-on-1 chats: is the other person typing? */
+    otherTyping: typers.length > 0,
+    notifyTyping,
+    notifyStopped,
+    notifyRead,
+    /** Hide someone's "typing…" right away when their message lands. */
+    clearTyper: stopShowing,
+  };
 }

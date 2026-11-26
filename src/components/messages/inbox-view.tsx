@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ChevronRight, MailPlus, MailQuestion } from "lucide-react";
 import { useQuery } from "urql";
 import { EmptyState } from "@/components/feed/tweet-feed";
-import { UserAvatar } from "@/components/user-avatar";
 import { useViewer } from "@/components/providers/viewer-provider";
 import {
   ConversationsQuery,
@@ -16,6 +15,7 @@ import { BackButton } from "@/components/layout/back-button";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { NewMessageDialog } from "./new-message-dialog";
+import { ChatAvatar, chatTitle } from "./chat-identity";
 import { useLiveMessages } from "./realtime-provider";
 
 function RowSkeleton() {
@@ -140,18 +140,27 @@ export function InboxView({ requests = false }: { requests?: boolean }) {
             const other = c.otherParticipant;
             const unread = c.unreadCount > 0;
             const last = c.lastMessage;
+            // Who sent the last message: "You", or a first name in groups.
+            const lastSender =
+              last && last.senderId === viewer?.id
+                ? "You: "
+                : last && c.isGroup
+                  ? `${c.participants.find((p) => p.user.id === last.senderId)?.user.displayName.split(" ")[0] ?? "Someone"}: `
+                  : "";
+            const preview = !last
+              ? ""
+              : last.systemText
+                ? last.systemText
+                : last.deletedAt
+                  ? `${lastSender}This message was deleted`
+                  : `${lastSender}${last.content || (last.mediaPaths.length > 1 ? "📷 Photos" : "📷 Photo")}`;
             return (
               <li key={c.id}>
                 <Link
                   href={`/messages/${c.id}`}
                   className="flex gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
                 >
-                  <UserAvatar
-                    name={other.displayName}
-                    username={other.username}
-                    src={other.avatarUrl ?? undefined}
-                    className="size-12"
-                  />
+                  <ChatAvatar chat={c} viewerId={viewer?.id} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-1.5">
                       <span
@@ -160,11 +169,13 @@ export function InboxView({ requests = false }: { requests?: boolean }) {
                           unread ? "font-extrabold" : "font-bold",
                         )}
                       >
-                        {other.displayName}
+                        {chatTitle(c, viewer?.id)}
                       </span>
-                      <span className="truncate text-muted-foreground">
-                        @{other.username}
-                      </span>
+                      {other && (
+                        <span className="truncate text-muted-foreground">
+                          @{other.username}
+                        </span>
+                      )}
                       {last && (
                         <time
                           dateTime={last.createdAt}
@@ -184,9 +195,7 @@ export function InboxView({ requests = false }: { requests?: boolean }) {
                             : "text-muted-foreground",
                         )}
                       >
-                        {last
-                          ? `${last.senderId === viewer?.id ? "You: " : ""}${last.deletedAt ? "This message was deleted" : last.content || (last.mediaPaths.length > 1 ? "📷 Photos" : "📷 Photo")}`
-                          : ""}
+                        {preview}
                       </p>
                       {unread && (
                         <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground">

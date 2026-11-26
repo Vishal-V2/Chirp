@@ -120,6 +120,7 @@ export function Pinger() {
 
   useLiveMessages(async (m) => {
     if (m.edited) return; // an unsend, not a new message
+    if (m.systemText) return; // "Ada added Sam" etc. aren't worth a ping
     if (m.senderId === viewer?.id) return; // your own message
     // Already reading this chat.
     if (pathname === `/messages/${m.conversationId}` && watching()) return;
@@ -130,16 +131,24 @@ export function Pinger() {
         { requestPolicy: "network-only" },
       )
       .toPromise();
-    const sender = result.data?.conversation?.otherParticipant;
+    const chat = result.data?.conversation;
+    // 1-on-1s: the other person; groups have none (their name comes below).
+    const sender = chat?.otherParticipant;
     // Muted people's messages still arrive (and count as unread), silently;
     // message requests don't ping either.
-    if (!sender || sender.viewerHasMuted) return;
+    if (!chat || (!chat.isGroup && !sender)) return;
+    if (sender?.viewerHasMuted) return;
     if (result.data?.conversation?.isRequest) return;
     if (!claimPing(`m:${m.id}`)) return;
     playChirp();
     if (watching()) return;
+    const senderName =
+      chat?.participants.find((p) => p.user.id === m.senderId)?.user
+        .displayName ?? "Someone";
     await showPopup({
-      title: sender.displayName,
+      title: chat?.isGroup
+        ? `${senderName} in ${chat.name || "your group"}`
+        : (sender?.displayName ?? senderName),
       body: m.content
         ? snippet(m.content)
         : m.mediaPaths?.length > 1

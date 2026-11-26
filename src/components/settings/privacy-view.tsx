@@ -46,7 +46,7 @@ export function PrivacyView() {
       <SettingsRow
         href="/settings/privacy/messages"
         icon={Mail}
-        label="Who can message you"
+        label="Messages and read receipts"
         hint={
           policy ? `Allow messages from: ${POLICY_LABEL[policy]}` : undefined
         }

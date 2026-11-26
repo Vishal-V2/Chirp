@@ -32,6 +32,8 @@ model User {
   pinnedTweet         Tweet?    @relation("pinned", fields: [pinnedTweetId], references: [id], onDelete: SetNull)
   /// Who may start a chat with this user (Settings → Privacy and safety).
   dmPolicy            DmPolicy  @default(EVERYONE)
+  /// Read receipts: others see when you've read their messages (and you see theirs).
+  readReceipts        Boolean   @default(true)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
@@ -141,12 +143,21 @@ model Follow {
 
 /// A one-to-one direct message thread.
 model Conversation {
-  id        String   @id @default(cuid())
-  /// "<smaller user id>:<larger user id>", so each pair has at most one conversation.
-  pairKey   String   @unique
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  /// 1-on-1 chats: "<smaller user id>:<larger user id>", so each pair has at
+  /// most one conversation. Null for group chats.
+  pairKey     String?  @unique
+  /// Group chat (up to 20 people) rather than a 1-on-1.
+  isGroup     Boolean  @default(false)
+  /// Group name (optional; otherwise members' names are shown).
+  name        String?  @db.VarChar(50)
+  /// Group photo: a path in the private message-media bucket.
+  photoPath   String?
+  /// Who created the group (they're always an admin).
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
   /// Bumped on every message; sorts the conversation list.
-  updatedAt DateTime @default(now())
+  updatedAt   DateTime @default(now())
 
   participants ConversationParticipant[]
   messages     Message[]
@@ -156,7 +167,7 @@ model Conversation {
 
 model ConversationParticipant {
   conversationId  String
-  userId          String    @db.Uuid
+  userId          String          @db.Uuid
   /// Messages after this are unread for this participant.
   lastReadAt      DateTime?
   /// When this participant accepted the chat. Null = it's a message request
@@ -164,6 +175,8 @@ model ConversationParticipant {
   acceptedAt      DateTime?
   /// They deleted the request: it's hidden from their inbox and requests.
   requestHiddenAt DateTime?
+  /// Group admins can add/remove people, make admins, rename and change the photo.
+  role            ParticipantRole @default(MEMBER)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -181,6 +194,9 @@ model Message {
   /// Set when the sender unsends it: its text and images are cleared and both
   /// people see "This message was deleted".
   deletedAt      DateTime?
+  /// A group event shown as a small centred note ("Ada added Sam") instead
+  /// of a bubble. The sender is the person who did it.
+  systemText     String?   @db.VarChar(200)
   createdAt      DateTime  @default(now())
   conversationId String
   senderId       String    @db.Uuid
@@ -322,4 +338,10 @@ enum DmPolicy {
   FOLLOWING
   /// Nobody new (chats they already accepted keep working).
   NOBODY
+}
+
+/// A person's role in a group chat.
+enum ParticipantRole {
+  MEMBER
+  ADMIN
 }
