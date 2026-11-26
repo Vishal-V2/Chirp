@@ -2,6 +2,7 @@ import { createBuilder } from "./builder";
 import { addBookmarkTypes } from "./types/bookmark";
 import { addMessageTypes } from "./types/message";
 import { addNotificationTypes } from "./types/notification";
+import { addSafetyTypes } from "./types/safety";
 import { addTweetTypes } from "./types/tweet";
 import { addUserTypes } from "./types/user";
 
@@ -12,6 +13,7 @@ function buildSchema() {
   addMessageTypes(builder);
   addNotificationTypes(builder);
   addBookmarkTypes(builder);
+  addSafetyTypes(builder);
   return builder.toSchema();
 }
 

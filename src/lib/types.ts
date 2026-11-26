@@ -14,6 +14,10 @@ export type TweetData = {
   poll?: PollFieldsFragment | null;
   /** Quote reposts: the embedded chirp (null if it was deleted). */
   isQuote?: boolean;
+  /** Pinned to the top of its author's profile. */
+  isPinned?: boolean;
+  /** The author continued this chirp as a thread. */
+  hasThread?: boolean;
   quoteCount?: number;
   quoted?: QuotedTweetFieldsFragment | null;
   createdAt: string;
@@ -28,6 +32,9 @@ export type TweetData = {
     username: string;
     displayName: string;
     avatarUrl?: string | null;
+    /** You muted / blocked them: their chirps are hidden as soon as you do. */
+    viewerHasMuted?: boolean;
+    viewerHasBlocked?: boolean;
   };
   parent?: { id: string; author: { username: string } } | null;
 };

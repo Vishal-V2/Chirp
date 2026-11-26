@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "../auth";
 import type { Builder } from "../builder";
+import { visibleTo } from "../safety";
 
 export function addNotificationTypes(builder: Builder) {
   const NotificationTypeEnum = builder.enumType("NotificationType", {
@@ -33,7 +34,7 @@ export function addNotificationTypes(builder: Builder) {
         const me = requireUser(ctx);
         return prisma.notification.findMany({
           ...query,
-          where: { recipientId: me },
+          where: { recipientId: me, actor: visibleTo(me) },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         });
       },
@@ -48,6 +49,7 @@ export function addNotificationTypes(builder: Builder) {
         return prisma.notification.count({
           where: {
             recipientId: ctx.userId,
+            actor: visibleTo(ctx.userId),
             ...(me?.notificationsReadAt && {
               createdAt: { gt: me.notificationsReadAt },
             }),

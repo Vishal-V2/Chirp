@@ -93,11 +93,22 @@ export function ProfileView({
       {user ? (
         <>
           <ProfileHeader user={user} isSelf={isSelf} onSave={save} />
-          <ProfileTabs
-            username={user.username}
-            displayName={user.displayName}
-            isSelf={isSelf}
-          />
+          {user.blocksViewer ? (
+            <BlockNotice title="You're blocked">
+              You can&apos;t follow or see @{user.username}&apos;s chirps.
+            </BlockNotice>
+          ) : user.viewerHasBlocked ? (
+            <BlockNotice title={`@${user.username} is blocked`}>
+              You won&apos;t see their chirps, and they can&apos;t follow you,
+              reply to you or message you. Unblock them to see their profile.
+            </BlockNotice>
+          ) : (
+            <ProfileTabs
+              username={user.username}
+              displayName={user.displayName}
+              isSelf={isSelf}
+            />
+          )}
         </>
       ) : error ? (
         <div className="px-4 py-8 text-center">
@@ -116,5 +127,23 @@ export function ProfileView({
         <ProfileSkeleton />
       )}
     </>
+  );
+}
+
+/** Shown instead of the tabs when there's a block between you. */
+function BlockNotice({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mx-auto max-w-sm px-8 py-12">
+      <h3 className="font-heading text-[31px] leading-tight font-extrabold tracking-tight">
+        {title}
+      </h3>
+      <p className="mt-2 text-[15px] text-muted-foreground">{children}</p>
+    </div>
   );
 }

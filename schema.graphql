@@ -48,19 +48,26 @@ type Message {
 }
 
 type Mutation {
+  block(userId: ID!): User!
   bookmarkTweet(id: ID!): Tweet!
+  createThread(parts: [ThreadPartInput!]!): Tweet!
   createTweet(content: String!, location: String, mediaUrls: [String!], parentId: ID, poll: PollInput, quotedId: ID): Tweet!
   deleteTweet(id: ID!): Boolean!
   follow(userId: ID!): User!
   likeTweet(id: ID!): Tweet!
   markConversationRead(conversationId: ID!): Conversation!
   markNotificationsRead: Int!
+  mute(userId: ID!): User!
+  pinTweet(id: ID!): [Tweet!]!
   retweet(id: ID!): Tweet!
   sendMessage(content: String!, conversationId: ID!): Message!
   startConversation(userId: ID!): Conversation!
+  unblock(userId: ID!): User!
   unbookmarkTweet(id: ID!): Tweet!
   unfollow(userId: ID!): User!
   unlikeTweet(id: ID!): Tweet!
+  unmute(userId: ID!): User!
+  unpinTweet(id: ID!): [Tweet!]!
   unretweet(id: ID!): Tweet!
   updateProfile(input: UpdateProfileInput!): User!
   votePoll(optionId: ID!): Poll!
@@ -113,6 +120,7 @@ type PollOption {
 }
 
 type Query {
+  blockedAccounts: [User!]!
   bookmarks(after: String, before: String, first: Int, last: Int): QueryBookmarksConnection!
   conversation(id: ID!): Conversation
   conversations: [Conversation!]!
@@ -121,6 +129,7 @@ type Query {
   homeFeed(after: String, before: String, first: Int, last: Int): QueryHomeFeedConnection!
   likedTweets(after: String, before: String, first: Int, last: Int): QueryLikedTweetsConnection!
   me: User
+  mutedAccounts: [User!]!
   notifications(after: String, before: String, first: Int, last: Int): QueryNotificationsConnection!
   popularTweets(after: String, before: String, first: Int, last: Int): QueryPopularTweetsConnection!
   searchTweets(after: String, before: String, first: Int, last: Int, query: String!): QuerySearchTweetsConnection!
@@ -224,6 +233,13 @@ type Reposter {
   username: String!
 }
 
+input ThreadPartInput {
+  content: String!
+  location: String
+  mediaUrls: [String!]
+  poll: PollInput
+}
+
 """A #tag and how many chirps used it recently."""
 type Trend {
   chirpCount: Int!
@@ -235,7 +251,9 @@ type Tweet {
   author: User!
   content: String!
   createdAt: DateTime!
+  hasThread: Boolean!
   id: ID!
+  isPinned: Boolean!
   isQuote: Boolean!
   likeCount: Int!
   location: String
@@ -247,6 +265,7 @@ type Tweet {
   replies(after: String, before: String, first: Int, last: Int): TweetRepliesConnection!
   replyCount: Int!
   retweetCount: Int!
+  threadContinuation: [Tweet!]!
   viewerHasBookmarked: Boolean!
   viewerHasLiked: Boolean!
   viewerHasRetweeted: Boolean!
@@ -274,6 +293,7 @@ type User {
   avatarUrl: String
   bannerUrl: String
   bio: String
+  blocksViewer: Boolean!
   createdAt: DateTime!
   displayName: String!
   followerCount: Int!
@@ -287,6 +307,8 @@ type User {
   tweetCount: Int!
   tweets(after: String, before: String, first: Int, last: Int): UserTweetsConnection!
   username: String!
+  viewerHasBlocked: Boolean!
+  viewerHasMuted: Boolean!
   viewerIsFollowing: Boolean!
 }
 
@@ -328,6 +350,9 @@ type UserTimelineConnection {
 type UserTimelineEdge {
   cursor: String!
   node: Tweet!
+
+  """The pinned chirp, shown first on the first page."""
+  pinned: Boolean!
 
   """Set when this entry is a repost: when it was reposted."""
   repostedAt: DateTime

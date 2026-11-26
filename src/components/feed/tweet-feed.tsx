@@ -13,6 +13,8 @@ type Connection = {
   edges: {
     node: TweetFieldsFragment;
     repostedBy?: { username: string; displayName: string };
+    /** The profile's pinned chirp (shown first, labelled "Pinned"). */
+    pinned?: boolean;
   }[];
   pageInfo: { hasNextPage: boolean; endCursor: string | null };
 };
@@ -137,8 +139,13 @@ function FeedPage<Data, Vars extends PageVariables>({
 
   return (
     <>
-      {connection.edges.map(({ node, repostedBy }) => (
-        <TweetCard key={node.id} tweet={node} repostedBy={repostedBy} />
+      {connection.edges.map(({ node, repostedBy, pinned }) => (
+        <TweetCard
+          key={node.id}
+          tweet={node}
+          repostedBy={repostedBy}
+          pinned={pinned}
+        />
       ))}
       {isLast && hasNextPage && endCursor && !fetching && (
         <LoadMoreTrigger onVisible={() => onLoadMore(endCursor)} />

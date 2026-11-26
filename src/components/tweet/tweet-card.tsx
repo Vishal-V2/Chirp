@@ -3,15 +3,16 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Bookmark,
   Heart,
+  MapPin,
   MessageCircle,
+  Pin,
   Repeat2,
   Share,
   type LucideIcon,
-  MapPin,
 } from "lucide-react";
 import { AnimatedCount } from "@/components/motion/animated-count";
 import { UserAvatar } from "@/components/user-avatar";
@@ -166,6 +167,18 @@ export function ActionButton({
 }
 
 /** "↻ Sam Rivera reposted" above a reposted chirp ("You reposted" for yourself). */
+/** "Pinned" above the chirp pinned to the top of a profile. */
+function PinnedLabel() {
+  return (
+    <p className="-mt-1 mb-1 flex basis-full items-center gap-3 text-[13px] font-semibold text-muted-foreground">
+      <span className="flex w-10 justify-end">
+        <Pin className="size-4" aria-hidden />
+      </span>
+      Pinned
+    </p>
+  );
+}
+
 function RepostedLabel({
   by,
 }: {
@@ -190,8 +203,11 @@ export function TweetCard({
   threadLine = false,
   showReplyingTo = true,
   repostedBy,
+  pinned = false,
 }: {
   tweet: TweetData;
+  /** Shown first on a profile as its pinned chirp. */
+  pinned?: boolean;
   /** Shown because this person reposted it (profile "Chirps" tab). */
   repostedBy?: { username: string; displayName: string };
   /** Draw a line under the avatar connecting to the next tweet in a thread. */
@@ -218,10 +234,17 @@ export function TweetCard({
   const href = tweetHref(tweet);
   // Collapse away right after deleting; the feed refetch then drops it for good.
   const [deleted, setDeleted] = useState(false);
+  // Mute/block: collapse away at once. A muted person's chirps still show on
+  // their own profile (you went there on purpose); blocked ones never do.
+  const pathname = usePathname();
+  const onAuthorsProfile =
+    pathname.split("/")[1]?.toLowerCase() === author.username.toLowerCase();
+  const hidden =
+    author.viewerHasBlocked || (author.viewerHasMuted && !onAuthorsProfile);
 
   return (
     <AnimatePresence>
-      {!deleted && (
+      {!deleted && !hidden && (
         <motion.article
           initial={false}
           exit={{
@@ -247,6 +270,7 @@ export function TweetCard({
             threadLine ? "pb-0" : "border-b pb-3",
           )}
         >
+          {pinned && tweet.isPinned !== false && <PinnedLabel />}
           {repostedBy && <RepostedLabel by={repostedBy} />}
           <div className="flex shrink-0 flex-col items-center">
             <Link href={`/${author.username}`}>
@@ -323,6 +347,16 @@ export function TweetCard({
 
                 <span className="truncate">{tweet.location}</span>
               </p>
+            )}
+
+            {/* The first chirp of a thread links to the whole thread. */}
+            {tweet.hasThread && !tweet.parent && (
+              <Link
+                href={href}
+                className="mt-2 inline-block text-[15px] text-primary hover:underline"
+              >
+                Show this thread
+              </Link>
             )}
 
             <div className="mt-3 flex max-w-md justify-between">

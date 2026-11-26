@@ -38,3 +38,30 @@ export const MarkNotificationsReadMutation = graphql(`
     markNotificationsRead
   }
 `);
+
+/** Who did what, for the notification ping (newest few; the ping picks its id). */
+export const PingNotificationsQuery = graphql(`
+  query PingNotifications {
+    notifications(first: 5) {
+      edges {
+        node {
+          id
+          type
+          actor {
+            id
+            username
+            displayName
+          }
+          tweet {
+            id
+            content
+            author {
+              id
+              username
+            }
+          }
+        }
+      }
+    }
+  }
+`);

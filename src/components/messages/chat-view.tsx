@@ -347,47 +347,55 @@ export function ChatView({ conversationId }: { conversationId: string }) {
         <div ref={bottom} className="h-2" />
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-        className="sticky bottom-14 z-10 flex items-end gap-2 border-t bg-background/95 px-3 py-2.5 backdrop-blur-md sm:bottom-0"
-      >
-        <textarea
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            if (e.target.value.trim()) notifyTyping();
-            else notifyStopped();
+      {other?.viewerHasBlocked || other?.blocksViewer ? (
+        <p className="sticky bottom-14 z-10 border-t bg-background/95 px-4 py-4 text-center text-[15px] text-muted-foreground backdrop-blur-md sm:bottom-0">
+          {other.viewerHasBlocked
+            ? `You blocked @${other.username}. Unblock them on their profile to send messages.`
+            : `You can't message @${other.username}.`}
+        </p>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
           }}
-          onKeyDown={(e) => {
-            // Enter sends; Shift+Enter adds a new line.
-            if (
-              e.key === "Enter" &&
-              !e.shiftKey &&
-              !e.nativeEvent.isComposing
-            ) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder="Write a message"
-          aria-label="Write a message"
-          rows={1}
-          maxLength={MAX}
-          className="field-sizing-content max-h-40 min-h-10 flex-1 resize-none rounded-3xl bg-muted px-4 py-2.5 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-primary"
-        />
-        <motion.button
-          type="submit"
-          aria-label="Send"
-          disabled={!text.trim()}
-          whileTap={{ scale: 0.88 }}
-          className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity disabled:opacity-40"
+          className="sticky bottom-14 z-10 flex items-end gap-2 border-t bg-background/95 px-3 py-2.5 backdrop-blur-md sm:bottom-0"
         >
-          <SendHorizontal className="size-4" />
-        </motion.button>
-      </form>
+          <textarea
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              if (e.target.value.trim()) notifyTyping();
+              else notifyStopped();
+            }}
+            onKeyDown={(e) => {
+              // Enter sends; Shift+Enter adds a new line.
+              if (
+                e.key === "Enter" &&
+                !e.shiftKey &&
+                !e.nativeEvent.isComposing
+              ) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            placeholder="Write a message"
+            aria-label="Write a message"
+            rows={1}
+            maxLength={MAX}
+            className="field-sizing-content max-h-40 min-h-10 flex-1 resize-none rounded-3xl bg-muted px-4 py-2.5 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-primary"
+          />
+          <motion.button
+            type="submit"
+            aria-label="Send"
+            disabled={!text.trim()}
+            whileTap={{ scale: 0.88 }}
+            className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity disabled:opacity-40"
+          >
+            <SendHorizontal className="size-4" />
+          </motion.button>
+        </form>
+      )}
     </div>
   );
 }

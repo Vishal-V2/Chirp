@@ -41,6 +41,8 @@ export const ConversationQuery = graphql(`
         username
         displayName
         avatarUrl
+        viewerHasBlocked
+        blocksViewer
       }
       messages(first: $first) {
         edges {
@@ -83,6 +85,21 @@ export const MarkConversationReadMutation = graphql(`
     markConversationRead(conversationId: $conversationId) {
       id
       unreadCount
+    }
+  }
+`);
+
+/** Who sent a message, for the message ping. */
+export const PingSenderQuery = graphql(`
+  query PingSender($id: ID!) {
+    conversation(id: $id) {
+      id
+      otherParticipant {
+        id
+        username
+        displayName
+        viewerHasMuted
+      }
     }
   }
 `);

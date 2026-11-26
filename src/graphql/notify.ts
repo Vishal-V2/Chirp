@@ -1,5 +1,6 @@
 import type { NotificationType } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { canNotify } from "./safety";
 
 type Event = {
   type: NotificationType;
@@ -22,6 +23,8 @@ const dedupeKey = (e: Event) =>
 export async function notify(e: Event) {
   if (e.actorId === e.recipientId) return;
   try {
+    // Nothing across a block, or from someone the recipient muted.
+    if (!(await canNotify(e.actorId, e.recipientId))) return;
     const key = dedupeKey(e);
     if (key) {
       await prisma.notification.upsert({

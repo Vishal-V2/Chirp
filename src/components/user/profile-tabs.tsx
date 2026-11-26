@@ -51,6 +51,7 @@ export function ProfileTabs({
                   ...d.user.timeline,
                   edges: d.user.timeline.edges.map((e) => ({
                     node: e.node,
+                    pinned: e.pinned,
                     repostedBy: e.repostedAt
                       ? { username, displayName }
                       : undefined,

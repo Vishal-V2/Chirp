@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { MessageButton } from "@/components/messages/message-button";
 import { EditProfileDialog, type ProfileSave } from "./edit-profile-dialog";
 import { FollowButton } from "./follow-button";
+import { BlockedButton, ProfileMenu } from "./profile-menu";
 
 export function ProfileHeader({
   user,
@@ -79,15 +80,22 @@ export function ProfileHeader({
               <EditProfileDialog user={user} onSave={onSave} />
             ) : (
               <div className="flex items-center gap-2">
-                <MessageButton
-                  userId={user.id}
-                  displayName={user.displayName}
-                />
-                <FollowButton
-                  userId={user.id}
-                  displayName={user.displayName}
-                  following={user.viewerIsFollowing}
-                />
+                <ProfileMenu user={user} />
+                {user.viewerHasBlocked ? (
+                  <BlockedButton user={user} />
+                ) : user.blocksViewer ? null : (
+                  <>
+                    <MessageButton
+                      userId={user.id}
+                      displayName={user.displayName}
+                    />
+                    <FollowButton
+                      userId={user.id}
+                      displayName={user.displayName}
+                      following={user.viewerIsFollowing}
+                    />
+                  </>
+                )}
               </div>
             )}
           </div>

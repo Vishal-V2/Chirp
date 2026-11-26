@@ -101,7 +101,13 @@ export function TweetThread({ tweetId }: { tweetId: string }) {
     }
   }
 
-  const replies = tweet.replies.edges.map((e) => e.node);
+  // The rest of the author's thread shows right under this chirp, so it's
+  // left out of the replies below.
+  const continuation = tweet.threadContinuation;
+  const inThread = new Set(continuation.map((t) => t.id));
+  const replies = tweet.replies.edges
+    .map((e) => e.node)
+    .filter((r) => !inThread.has(r.id));
 
   return (
     <>
@@ -116,6 +122,14 @@ export function TweetThread({ tweetId }: { tweetId: string }) {
           onReply={() => document.getElementById(REPLY_INPUT_ID)?.focus()}
           onDeleted={() => router.push("/")}
         />
+        {continuation.map((t, i) => (
+          <TweetCard
+            key={t.id}
+            tweet={t}
+            threadLine={i < continuation.length - 1}
+            showReplyingTo={false}
+          />
+        ))}
         {viewer && (
           <TweetComposer
             placeholder="Write your reply"

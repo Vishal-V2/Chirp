@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "../auth";
 import type { Builder } from "../builder";
+import { visibleAuthor } from "../safety";
 import { requireTweet } from "./tweet";
 
 /** Bookmarks: private saves. Only you can see yours; nobody is notified. */
@@ -35,7 +36,7 @@ export function addBookmarkTypes(builder: Builder) {
         const me = requireUser(ctx);
         return prisma.bookmark.findMany({
           ...query,
-          where: { userId: me },
+          where: { userId: me, tweet: visibleAuthor(me) },
           orderBy: [{ createdAt: "desc" }, { tweetId: "desc" }],
         });
       },

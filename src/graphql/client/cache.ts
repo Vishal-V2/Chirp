@@ -71,6 +71,28 @@ function invalidateProfileTimelines(cache: Cache) {
   }
 }
 
+/** Muting or blocking changes almost every list: refetch them. */
+function invalidateAfterSafetyChange(cache: Cache, userId: string) {
+  invalidateFeeds(cache);
+  invalidateFields(cache, "Query", [
+    "notifications",
+    "unreadNotificationCount",
+    "unreadMessageCount",
+    "conversations",
+    "bookmarks",
+    "likedTweets",
+    "whoToFollow",
+    "mutedAccounts",
+    "blockedAccounts",
+  ]);
+  invalidateProfileTimelines(cache);
+  // A block removes follows both ways.
+  invalidateFields(cache, { __typename: "User", id: userId }, [
+    "followers",
+    "following",
+  ]);
+}
+
 /** Drop cached feed pages so they refetch (after posting or deleting). */
 function invalidateFeeds(cache: Cache) {
   invalidateFields(cache, "Query", [
@@ -105,6 +127,20 @@ export const graphcache = cacheExchange({
   },
   updates: {
     Mutation: {
+      createThread(result, _args, cache) {
+        invalidateFeeds(cache);
+        const authorId = (
+          result.createThread as { author?: { id?: string } } | null
+        )?.author?.id;
+        if (authorId) {
+          invalidateFields(cache, { __typename: "User", id: authorId }, [
+            "tweets",
+            "timeline",
+            "replies",
+            "tweetCount",
+          ]);
+        }
+      },
       createTweet(result, args, cache) {
         invalidateFeeds(cache);
         // The author's profile tabs and post count.
@@ -141,6 +177,9 @@ export const graphcache = cacheExchange({
           }
         }
       },
+      // Pinning reorders your profile's Chirps tab.
+      pinTweet: (_r, _a, cache) => invalidateProfileTimelines(cache),
+      unpinTweet: (_r, _a, cache) => invalidateProfileTimelines(cache),
       // A repost changes your profile's Chirps tab. The updater can't tell who
       // "you" are, so refresh the timelines of every profile in the cache.
       retweet(_result, _args, cache) {
@@ -202,6 +241,14 @@ export const graphcache = cacheExchange({
           ["followers"],
         );
       },
+      block: (_r, args, cache) =>
+        invalidateAfterSafetyChange(cache, String(args.userId)),
+      unblock: (_r, args, cache) =>
+        invalidateAfterSafetyChange(cache, String(args.userId)),
+      mute: (_r, args, cache) =>
+        invalidateAfterSafetyChange(cache, String(args.userId)),
+      unmute: (_r, args, cache) =>
+        invalidateAfterSafetyChange(cache, String(args.userId)),
       deleteTweet(result, args, cache) {
         if (!result.deleteTweet) return;
         cache.invalidate({ __typename: "Tweet", id: String(args.id) });
@@ -212,6 +259,28 @@ export const graphcache = cacheExchange({
   // Show likes/reposts instantly; the server's answer replaces these, and
   // they're rolled back automatically if the request fails.
   optimistic: {
+    // Hide their chirps the moment you mute/block (rolled back if it fails).
+    mute: (args) => ({
+      __typename: "User",
+      id: String(args.userId),
+      viewerHasMuted: true,
+    }),
+    unmute: (args) => ({
+      __typename: "User",
+      id: String(args.userId),
+      viewerHasMuted: false,
+    }),
+    block: (args) => ({
+      __typename: "User",
+      id: String(args.userId),
+      viewerHasBlocked: true,
+      viewerIsFollowing: false,
+    }),
+    unblock: (args) => ({
+      __typename: "User",
+      id: String(args.userId),
+      viewerHasBlocked: false,
+    }),
     bookmarkTweet: (args) => ({
       __typename: "Tweet",
       id: String(args.id),

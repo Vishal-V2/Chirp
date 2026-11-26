@@ -2,6 +2,13 @@ import { z } from "zod";
 import type { Builder } from "../builder";
 import { badInput, notFound, requireUser } from "../auth";
 import { notify, unnotify } from "../notify";
+import {
+  activeUser,
+  assertNotWalled,
+  notWalledFrom,
+  visibleAuthor,
+  visibleTo,
+} from "../safety";
 import { loadTimeline } from "../timeline";
 import { addTweetTypes, escapeLike } from "./tweet";
 import { prisma } from "@/lib/prisma";
@@ -31,22 +38,34 @@ export function addUserTypes(
       avatarUrl: t.exposeString("avatarUrl", { nullable: true }),
       bannerUrl: t.exposeString("bannerUrl", { nullable: true }),
       createdAt: t.expose("createdAt", { type: "DateTime" }),
-      followerCount: t.relationCount("followers"),
-      followingCount: t.relationCount("following"),
+      // Deactivated accounts don't count.
+      followerCount: t.relationCount("followers", {
+        where: { follower: activeUser },
+      }),
+      followingCount: t.relationCount("following", {
+        where: { following: activeUser },
+      }),
       tweetCount: t.relationCount("tweets"),
       /** Top-level posts only (the profile "Posts" tab). */
+      // Across a block, a profile's chirps aren't shown at all.
       tweets: t.relatedConnection("tweets", {
         cursor: "id",
-        query: () => ({
-          where: { parentId: null },
+        query: (_args, ctx) => ({
+          where: {
+            parentId: null,
+            author: ctx.userId ? notWalledFrom(ctx.userId) : activeUser,
+          },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         }),
       }),
       /** This user's replies (the profile "Replies" tab). */
       replies: t.relatedConnection("tweets", {
         cursor: "id",
-        query: () => ({
-          where: { parentId: { not: null } },
+        query: (_args, ctx) => ({
+          where: {
+            parentId: { not: null },
+            author: ctx.userId ? notWalledFrom(ctx.userId) : activeUser,
+          },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         }),
       }),
@@ -82,7 +101,7 @@ export function addUserTypes(
       timeline: t.connection(
         {
           type: refs.Tweet,
-          resolve: (user, args) => loadTimeline(user.id, args),
+          resolve: (user, args, ctx) => loadTimeline(user.id, args, ctx.userId),
         },
         { name: "UserTimelineConnection" },
         {
@@ -96,6 +115,10 @@ export function addUserTypes(
               resolve: (edge) =>
                 (edge as { repostedAt?: Date | null }).repostedAt ?? null,
             }),
+            pinned: te.boolean({
+              description: "The pinned chirp, shown first on the first page.",
+              resolve: (edge) => Boolean((edge as { pinned?: boolean }).pinned),
+            }),
           }),
         },
       ),
@@ -103,6 +126,7 @@ export function addUserTypes(
       followers: t.relatedConnection("followers", {
         cursor: "followerId_followingId",
         query: () => ({
+          where: { follower: activeUser },
           orderBy: [{ createdAt: "desc" }, { followerId: "desc" }],
         }),
       }),
@@ -110,6 +134,7 @@ export function addUserTypes(
       following: t.relatedConnection("following", {
         cursor: "followerId_followingId",
         query: () => ({
+          where: { following: activeUser },
           orderBy: [{ createdAt: "desc" }, { followingId: "desc" }],
         }),
       }),
@@ -169,7 +194,7 @@ export function addUserTypes(
         const me = requireUser(ctx);
         return prisma.like.findMany({
           ...query,
-          where: { userId: me },
+          where: { userId: me, tweet: visibleAuthor(me) },
           orderBy: [{ createdAt: "desc" }, { tweetId: "desc" }],
         });
       },
@@ -185,6 +210,7 @@ export function addUserTypes(
           where: {
             id: { not: ctx.userId },
             followers: { none: { followerId: ctx.userId } },
+            ...visibleTo(ctx.userId),
           },
           orderBy: [{ followers: { _count: "desc" } }, { createdAt: "asc" }],
           take: Math.min(Math.max(args.first ?? 3, 1), 20),
@@ -202,6 +228,7 @@ export function addUserTypes(
         return prisma.user.findMany({
           ...query,
           where: {
+            ...activeUser,
             OR: [
               { username: { contains: text, mode: "insensitive" } },
               { displayName: { contains: text, mode: "insensitive" } },
@@ -224,8 +251,12 @@ export function addUserTypes(
       type: "User",
       nullable: true,
       args: { username: t.arg.string({ required: true }) },
+      // A deactivated account reads as "doesn't exist".
       resolve: (query, _root, { username }) =>
-        prisma.user.findUnique({ ...query, where: { username } }),
+        prisma.user.findFirst({
+          ...query,
+          where: { username, ...activeUser },
+        }),
     }),
   }));
 
@@ -321,6 +352,7 @@ export function addUserTypes(
         const me = requireUser(ctx);
         const target = String(args.userId);
         if (target === me) throw badInput("You can't follow yourself.");
+        await assertNotWalled(me, target, "You can't follow this account.");
         const exists = await prisma.user.findUnique({
           where: { id: target },
           select: { id: true },

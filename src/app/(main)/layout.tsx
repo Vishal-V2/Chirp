@@ -4,6 +4,7 @@ import { RightSidebar } from "@/components/layout/right-sidebar";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { GraphQLProvider } from "@/components/providers/graphql-provider";
 import { RealtimeMessagesProvider } from "@/components/messages/realtime-provider";
+import { Pinger } from "@/components/notifications/pinger";
 import { Toaster } from "@/components/ui/sonner";
 import { ViewerProvider } from "@/components/providers/viewer-provider";
 import { getViewer } from "@/lib/auth";
@@ -13,6 +14,7 @@ export default async function MainLayout({ children }: LayoutProps<"/">) {
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
   if (!viewer.profile) redirect("/onboarding");
+  if (viewer.deactivatedAt) redirect("/reactivate");
 
   return (
     <ViewerProvider viewer={viewer.profile}>
@@ -33,6 +35,7 @@ export default async function MainLayout({ children }: LayoutProps<"/">) {
 
             <MobileNav username={viewer.profile.username} />
           </div>
+          <Pinger />
         </RealtimeMessagesProvider>
       </GraphQLProvider>
       <Toaster position="bottom-center" />

@@ -19,6 +19,8 @@ export const TweetFieldsFragment = graphql(`
       username
       displayName
       avatarUrl
+      viewerHasMuted
+      viewerHasBlocked
     }
     parent {
       id
@@ -31,6 +33,8 @@ export const TweetFieldsFragment = graphql(`
       ...PollFields
     }
     isQuote
+    isPinned
+    hasThread
     quoteCount
     quoted {
       ...QuotedTweetFields
@@ -191,6 +195,9 @@ export const TweetPageQuery = graphql(`
       ancestors {
         ...TweetFields
       }
+      threadContinuation {
+        ...TweetFields
+      }
       replies(first: $repliesFirst) {
         edges {
           node {
@@ -294,6 +301,38 @@ export const TrendingHashtagsQuery = graphql(`
     trendingHashtags(first: $first) {
       tag
       chirpCount
+    }
+  }
+`);
+
+/** Pin / unpin one of your chirps on your profile (returns the chirps whose pin changed). */
+export const PinTweetMutation = graphql(`
+  mutation PinTweet($id: ID!) {
+    pinTweet(id: $id) {
+      id
+      isPinned
+    }
+  }
+`);
+
+export const UnpinTweetMutation = graphql(`
+  mutation UnpinTweet($id: ID!) {
+    unpinTweet(id: $id) {
+      id
+      isPinned
+    }
+  }
+`);
+
+/** Posts several chirps at once as a thread; returns the first. */
+export const CreateThreadMutation = graphql(`
+  mutation CreateThread($parts: [ThreadPartInput!]!) {
+    createThread(parts: $parts) {
+      id
+      author {
+        id
+        username
+      }
     }
   }
 `);

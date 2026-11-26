@@ -14,7 +14,8 @@ export type LiveMessage = {
 };
 
 type Listener = (message: LiveMessage) => void;
-type NotificationListener = () => void;
+/** A new notification arrived; `id` is its row id. */
+type NotificationListener = (notification: { id: string }) => void;
 
 const ListenersContext = createContext<Set<Listener> | null>(null);
 const NotificationListenersContext =
@@ -80,9 +81,9 @@ export function RealtimeMessagesProvider({
           { event: "INSERT", schema: "public", table: "Notification" },
           (payload) => {
             // Only your own notifications carry data; anything else is an empty 401 event.
-            if (payload.errors?.length || !(payload.new as { id?: string })?.id)
-              return;
-            notificationListeners.forEach((fn) => fn());
+            const id = (payload.new as { id?: string })?.id;
+            if (payload.errors?.length || !id) return;
+            notificationListeners.forEach((fn) => fn({ id }));
           },
         )
         .subscribe();
@@ -121,7 +122,7 @@ export function useLiveMessages(onMessage: Listener) {
 }
 
 /** Calls `onNotification` whenever you get a new notification, as it happens. */
-export function useLiveNotifications(onNotification: () => void) {
+export function useLiveNotifications(onNotification: NotificationListener) {
   const listeners = useContext(NotificationListenersContext);
   const latest = useRef(onNotification);
   useEffect(() => {
@@ -129,7 +130,7 @@ export function useLiveNotifications(onNotification: () => void) {
   });
   useEffect(() => {
     if (!listeners) return;
-    const fn = () => latest.current();
+    const fn: NotificationListener = (n) => latest.current(n);
     listeners.add(fn);
     return () => {
       listeners.delete(fn);

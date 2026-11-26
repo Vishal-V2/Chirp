@@ -4,6 +4,12 @@ import { badInput, notFound, requireUser } from "../auth";
 import { loadHomeFeed } from "../home-feed";
 import { authorOf, notify, unnotify } from "../notify";
 import {
+  activeUser,
+  assertNotWalled,
+  notWalledFrom,
+  visibleAuthor,
+} from "../safety";
+import {
   extractHashtags,
   extractMentions,
   normalizeTag,
@@ -76,6 +82,9 @@ export async function requireTweet(id: string) {
     throw notFound("This chirp doesn't exist. It may have been deleted.");
 }
 
+/** The most chirps one thread can have. */
+const MAX_THREAD_PARTS = 25;
+
 export function addTweetTypes(builder: Builder) {
   const newestFirst = [{ createdAt: "desc" as const }, { id: "desc" as const }];
 
@@ -87,9 +96,63 @@ export function addTweetTypes(builder: Builder) {
       location: t.exposeString("location", { nullable: true }),
       poll: t.relation("poll", { nullable: true }),
       /** The chirp this one quotes (null if it isn't a quote, or the original was deleted). */
-      quoted: t.relation("quoted", { nullable: true }),
+      // Hidden (shown as unavailable) when there's a block between you and its author.
+      quoted: t.prismaField({
+        type: "Tweet",
+        nullable: true,
+        resolve: (query, tweet, _args, ctx) =>
+          tweet.quotedId
+            ? prisma.tweet.findFirst({
+                ...query,
+                where: {
+                  id: tweet.quotedId,
+                  author: ctx.userId ? notWalledFrom(ctx.userId) : activeUser,
+                },
+              })
+            : null,
+      }),
       /** True for quote reposts, even after the quoted chirp is gone. */
       isQuote: t.exposeBoolean("isQuote"),
+      /** The author replied to this chirp themselves: it starts a thread. */
+      hasThread: t.boolean({
+        resolve: async (tweet) =>
+          (await prisma.tweet.count({
+            where: { parentId: tweet.id, authorId: tweet.authorId },
+          })) > 0,
+      }),
+      /**
+       * The rest of the author's thread after this chirp: each next part is
+       * the author's earliest reply to the previous one (up to 25).
+       */
+      threadContinuation: t.prismaField({
+        type: ["Tweet"],
+        resolve: async (query, tweet) => {
+          const ids: string[] = [];
+          let current = tweet.id;
+          while (ids.length < MAX_THREAD_PARTS) {
+            const next = await prisma.tweet.findFirst({
+              where: { parentId: current, authorId: tweet.authorId },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              select: { id: true },
+            });
+            if (!next) break;
+            ids.push(next.id);
+            current = next.id;
+          }
+          if (ids.length === 0) return [];
+          const rows = await prisma.tweet.findMany({
+            ...query,
+            where: { id: { in: ids } },
+          });
+          const byId = new Map(rows.map((r) => [r.id, r]));
+          return ids.flatMap((id) => byId.get(id) ?? []);
+        },
+      }),
+      /** Pinned to the top of its author's profile. */
+      isPinned: t.boolean({
+        select: { pinnedBy: { select: { id: true } } },
+        resolve: (tweet) => tweet.pinnedBy !== null,
+      }),
       quoteCount: t.relationCount("quotes"),
       createdAt: t.expose("createdAt", { type: "DateTime" }),
       author: t.relation("author"),
@@ -123,9 +186,13 @@ export function addTweetTypes(builder: Builder) {
           return ids.flatMap((id) => byId.get(id) ?? []);
         },
       }),
+      // Replies from people you blocked, muted or who blocked you are hidden.
       replies: t.relatedConnection("replies", {
         cursor: "id",
-        query: () => ({ orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
+        query: (_args, ctx) => ({
+          where: visibleAuthor(ctx.userId),
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        }),
       }),
       likeCount: t.relationCount("likes"),
       retweetCount: t.relationCount("retweets"),
@@ -183,8 +250,15 @@ export function addTweetTypes(builder: Builder) {
       type: "Tweet",
       nullable: true,
       args: { id: t.arg.id({ required: true }) },
-      resolve: (query, _root, { id }) =>
-        prisma.tweet.findUnique({ ...query, where: { id: String(id) } }),
+      // Across a block, the chirp is treated as not found.
+      resolve: (query, _root, { id }, ctx) =>
+        prisma.tweet.findFirst({
+          ...query,
+          where: {
+            id: String(id),
+            author: ctx.userId ? notWalledFrom(ctx.userId) : activeUser,
+          },
+        }),
     }),
     /**
      * Your "Following" feed: chirps from you and the people you follow, plus
@@ -223,12 +297,12 @@ export function addTweetTypes(builder: Builder) {
       type: "Tweet",
       cursor: "id",
       args: { tag: t.arg.string({ required: true }) },
-      resolve: (query, _root, args) => {
+      resolve: (query, _root, args, ctx) => {
         const tag = normalizeTag(args.tag);
         if (!tag) throw badInput("Which hashtag?");
         return prisma.tweet.findMany({
           ...query,
-          where: { hashtags: { has: tag } },
+          where: { hashtags: { has: tag }, ...visibleAuthor(ctx.userId) },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         });
       },
@@ -253,12 +327,13 @@ export function addTweetTypes(builder: Builder) {
     popularTweets: t.prismaConnection({
       type: "Tweet",
       cursor: "id",
-      resolve: (query) =>
+      resolve: (query, _root, _args, ctx) =>
         prisma.tweet.findMany({
           ...query,
           where: {
             parentId: null,
             createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+            ...visibleAuthor(ctx.userId),
           },
           orderBy: [
             { likes: { _count: "desc" } },
@@ -272,7 +347,7 @@ export function addTweetTypes(builder: Builder) {
       type: "Tweet",
       cursor: "id",
       args: { query: t.arg.string({ required: true }) },
-      resolve: (query, _root, args) => {
+      resolve: (query, _root, args, ctx) => {
         const words = searchWords(args.query);
         if (words.length === 0) throw badInput("Type something to search for.");
         return prisma.tweet.findMany({
@@ -282,6 +357,7 @@ export function addTweetTypes(builder: Builder) {
             AND: words.map((w) => ({
               content: { contains: w, mode: "insensitive" as const },
             })),
+            ...visibleAuthor(ctx.userId),
           },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         });
@@ -291,10 +367,10 @@ export function addTweetTypes(builder: Builder) {
     exploreFeed: t.prismaConnection({
       type: "Tweet",
       cursor: "id",
-      resolve: (query) =>
+      resolve: (query, _root, _args, ctx) =>
         prisma.tweet.findMany({
           ...query,
-          where: { parentId: null },
+          where: { parentId: null, ...visibleAuthor(ctx.userId) },
           orderBy: newestFirst,
         }),
     }),
@@ -384,7 +460,90 @@ export function addTweetTypes(builder: Builder) {
     }),
   });
 
+  /** One chirp of a new thread. Only the first may have a poll. */
+  const ThreadPartInput = builder.inputType("ThreadPartInput", {
+    fields: (t) => ({
+      content: t.string({ required: true }),
+      mediaUrls: t.stringList(),
+      location: t.string(),
+      poll: t.field({ type: PollInput }),
+    }),
+  });
+
   builder.mutationFields((t) => ({
+    /**
+     * Posts a thread: several chirps at once, each a reply to the one before.
+     * Every part is checked first, then they're saved together (all or none).
+     * Returns the first chirp.
+     */
+    createThread: t.prismaField({
+      type: "Tweet",
+      args: {
+        parts: t.arg({ type: [ThreadPartInput], required: true }),
+      },
+      resolve: async (query, _root, args, ctx) => {
+        const authorId = requireUser(ctx);
+        if (args.parts.length < 2)
+          throw badInput("A thread needs at least 2 chirps.");
+        if (args.parts.length > MAX_THREAD_PARTS)
+          throw badInput(`A thread can have up to ${MAX_THREAD_PARTS} chirps.`);
+        const parts = args.parts.map((part, i) => {
+          if (i > 0 && part.poll)
+            throw badInput("Only the first chirp of a thread can have a poll.");
+          const parsed = tweetInput(authorId).safeParse({
+            content: part.content,
+            mediaUrls: part.mediaUrls ?? undefined,
+            location: part.location ?? undefined,
+            poll: part.poll ?? undefined,
+          });
+          if (!parsed.success) {
+            throw badInput(`Chirp ${i + 1}: ${parsed.error.issues[0].message}`);
+          }
+          return parsed.data;
+        });
+
+        const ids = await prisma.$transaction(async (tx) => {
+          const created: string[] = [];
+          for (const { poll, ...part } of parts) {
+            const row = await tx.tweet.create({
+              data: {
+                ...part,
+                hashtags: extractHashtags(part.content),
+                authorId,
+                parentId: created.at(-1),
+                ...(poll && {
+                  poll: {
+                    create: {
+                      endsAt: new Date(
+                        Date.now() + poll.durationMinutes * 60_000,
+                      ),
+                      options: {
+                        create: poll.options.map((text, position) => ({
+                          text,
+                          position,
+                        })),
+                      },
+                    },
+                  },
+                }),
+              },
+              select: { id: true },
+            });
+            created.push(row.id);
+          }
+          return created;
+        });
+
+        // @mentions in every part (replying to yourself notifies nobody).
+        for (const [i, part] of parts.entries()) {
+          await notifyMentions(part.content, authorId, ids[i], ids[i - 1]);
+        }
+        return prisma.tweet.findUniqueOrThrow({
+          ...query,
+          where: { id: ids[0] },
+        });
+      },
+    }),
     createTweet: t.prismaField({
       type: "Tweet",
       args: {
@@ -411,6 +570,21 @@ export function addTweetTypes(builder: Builder) {
         if (parsed.data.parentId) await requireTweet(parsed.data.parentId);
         // Quoting a chirp that was just deleted gives a clear error too.
         if (parsed.data.quotedId) await requireTweet(parsed.data.quotedId);
+        // No replying to or quoting someone across a block.
+        if (parsed.data.parentId) {
+          await assertNotWalled(
+            authorId,
+            await authorOf(parsed.data.parentId),
+            "You can't reply to this chirp.",
+          );
+        }
+        if (parsed.data.quotedId) {
+          await assertNotWalled(
+            authorId,
+            await authorOf(parsed.data.quotedId),
+            "You can't quote this chirp.",
+          );
+        }
         const { poll, ...tweet } = parsed.data;
         const created = await prisma.tweet.create({
           ...query,
@@ -477,6 +651,54 @@ export function addTweetTypes(builder: Builder) {
         return count > 0;
       },
     }),
+    /**
+     * Pins one of your own chirps (not a reply) to the top of your profile,
+     * replacing any earlier pin. Returns the chirps whose pin changed.
+     */
+    pinTweet: t.prismaField({
+      type: ["Tweet"],
+      args: { id: t.arg.id({ required: true }) },
+      resolve: async (query, _root, args, ctx) => {
+        const me = requireUser(ctx);
+        const tweetId = String(args.id);
+        const tweet = await prisma.tweet.findUnique({
+          where: { id: tweetId },
+          select: { authorId: true, parentId: true },
+        });
+        if (!tweet) throw notFound("This chirp doesn't exist.");
+        if (tweet.authorId !== me)
+          throw badInput("You can only pin your own chirps.");
+        if (tweet.parentId) throw badInput("Replies can't be pinned.");
+        const before = await prisma.user.findUnique({
+          where: { id: me },
+          select: { pinnedTweetId: true },
+        });
+        await prisma.user.update({
+          where: { id: me },
+          data: { pinnedTweetId: tweetId },
+        });
+        const changed = [tweetId, before?.pinnedTweetId].filter(
+          (id): id is string => Boolean(id),
+        );
+        return prisma.tweet.findMany({
+          ...query,
+          where: { id: { in: changed } },
+        });
+      },
+    }),
+    unpinTweet: t.prismaField({
+      type: ["Tweet"],
+      args: { id: t.arg.id({ required: true }) },
+      resolve: async (query, _root, args, ctx) => {
+        const me = requireUser(ctx);
+        const tweetId = String(args.id);
+        await prisma.user.updateMany({
+          where: { id: me, pinnedTweetId: tweetId },
+          data: { pinnedTweetId: null },
+        });
+        return prisma.tweet.findMany({ ...query, where: { id: tweetId } });
+      },
+    }),
     likeTweet: t.prismaField({
       type: "Tweet",
       args: { id: t.arg.id({ required: true }) },
@@ -484,6 +706,11 @@ export function addTweetTypes(builder: Builder) {
         const userId = requireUser(ctx);
         const tweetId = String(args.id);
         await requireTweet(tweetId);
+        await assertNotWalled(
+          userId,
+          await authorOf(tweetId),
+          "You can't like this chirp.",
+        );
         await prisma.like.upsert({
           where: { userId_tweetId: { userId, tweetId } },
           create: { userId, tweetId },
@@ -520,6 +747,11 @@ export function addTweetTypes(builder: Builder) {
         const userId = requireUser(ctx);
         const tweetId = String(args.id);
         await requireTweet(tweetId);
+        await assertNotWalled(
+          userId,
+          await authorOf(tweetId),
+          "You can't repost this chirp.",
+        );
         await prisma.retweet.upsert({
           where: { userId_tweetId: { userId, tweetId } },
           create: { userId, tweetId },

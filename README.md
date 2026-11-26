@@ -10,6 +10,7 @@ A Twitter/X-style social app: short posts ("chirps"), follows, likes, reposts, q
 - **Chirps:** up to 280 characters, up to 4 images or a GIF, polls, location, replies, quote reposts, reposts, likes, bookmarks and delete.
 - **Rich text:** `@mentions` (with notifications), `#hashtags` (with hashtag pages and trends) and links. YouTube and X links embed, and X GIFs play inline.
 - **Feeds:** For you and Following (including reposts), plus Explore with search, trends and popular chirps.
+- **Accounts and safety:** block and mute (Settings lists them), notification sound and pop-ups, and account deletion: deactivate with your password (or a fresh Google sign-in), restorable for 5 days, then deleted for good by a daily Vercel Cron job.
 - **Profiles:** avatar (cropped 1:1) and banner (cropped 3:1), bio, an editable username with a live availability check, and Chirps / Replies / Likes tabs (Likes ordered by when you liked them), followers and following.
 - **Real time:** private 1:1 messages with typing indicators, and live notifications for likes, replies, reposts, quotes, follows and mentions.
 - **Mobile:** bottom navigation, and bars that slide away as you scroll.
@@ -48,12 +49,14 @@ npm install
 
 Copy `.env.example` to `.env` and fill it in from Supabase (**Project Settings → Database / API**):
 
-| Variable                               | Used for                                                       |
-| -------------------------------------- | -------------------------------------------------------------- |
-| `DATABASE_URL`                         | App runtime: transaction pooler (port 6543, `?pgbouncer=true`) |
-| `DIRECT_URL`                           | Migrations: session pooler / direct connection (port 5432)     |
-| `NEXT_PUBLIC_SUPABASE_URL`             | Supabase project URL                                           |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable (anon) key                                |
+| Variable                               | Used for                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                         | App runtime: transaction pooler (port 6543, `?pgbouncer=true`)                              |
+| `DIRECT_URL`                           | Migrations: session pooler / direct connection (port 5432)                                  |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Supabase project URL                                                                        |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable (anon) key                                                             |
+| `SUPABASE_SECRET_KEY`                  | Server-only. The daily job that permanently deletes deactivated accounts (login and photos) |
+| `CRON_SECRET`                          | Any long random string; Vercel sends it so only Vercel Cron can run that job                |
 
 Never commit `.env`.
 

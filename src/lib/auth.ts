@@ -20,10 +20,18 @@ export const getViewer = cache(async () => {
   const claims = data?.claims;
   if (!claims?.sub) return null;
 
-  const profile: ViewerProfile | null = await prisma.user.findUnique({
+  const row = await prisma.user.findUnique({
     where: { id: claims.sub },
-    select: { id: true, username: true, displayName: true, avatarUrl: true },
+    select: {
+      id: true,
+      username: true,
+      displayName: true,
+      avatarUrl: true,
+      deactivatedAt: true,
+    },
   });
+  const { deactivatedAt = null, ...rest } = row ?? {};
+  const profile: ViewerProfile | null = row ? (rest as ViewerProfile) : null;
 
   // Google sign-ins carry the person's name; used to prefill onboarding.
   const meta = (claims.user_metadata ?? {}) as {
@@ -35,5 +43,7 @@ export const getViewer = cache(async () => {
     email: claims.email as string | undefined,
     name: meta.full_name ?? meta.name,
     profile,
+    /** Set while the account is deactivated (pending deletion). */
+    deactivatedAt,
   };
 });

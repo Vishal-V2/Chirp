@@ -13,6 +13,9 @@ export const ProfileFieldsFragment = graphql(`
     followingCount
     tweetCount
     viewerIsFollowing
+    viewerHasBlocked
+    viewerHasMuted
+    blocksViewer
   }
 `);
 
@@ -31,6 +34,7 @@ export const UserPostsQuery = graphql(`
       timeline(first: $first, after: $after) {
         edges {
           repostedAt
+          pinned
           node {
             ...TweetFields
           }
@@ -197,6 +201,63 @@ export const UsernameAvailableQuery = graphql(`
     usernameAvailable(username: $username) {
       available
       message
+    }
+  }
+`);
+
+/** Block / mute. Each returns the person's updated profile (flags, counts). */
+export const BlockMutation = graphql(`
+  mutation Block($userId: ID!) {
+    block(userId: $userId) {
+      ...ProfileFields
+    }
+  }
+`);
+
+export const UnblockMutation = graphql(`
+  mutation Unblock($userId: ID!) {
+    unblock(userId: $userId) {
+      ...ProfileFields
+    }
+  }
+`);
+
+export const MuteMutation = graphql(`
+  mutation Mute($userId: ID!) {
+    mute(userId: $userId) {
+      ...ProfileFields
+    }
+  }
+`);
+
+export const UnmuteMutation = graphql(`
+  mutation Unmute($userId: ID!) {
+    unmute(userId: $userId) {
+      ...ProfileFields
+    }
+  }
+`);
+
+/** Settings → Muted and blocked accounts. */
+export const SafetyListsQuery = graphql(`
+  query SafetyLists {
+    mutedAccounts {
+      id
+      username
+      displayName
+      avatarUrl
+      bio
+      viewerHasMuted
+      viewerHasBlocked
+    }
+    blockedAccounts {
+      id
+      username
+      displayName
+      avatarUrl
+      bio
+      viewerHasMuted
+      viewerHasBlocked
     }
   }
 `);

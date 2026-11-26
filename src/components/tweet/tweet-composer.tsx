@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Image as ImageIcon, ListChecks, MapPin, X } from "lucide-react";
+import { Image as ImageIcon, ListChecks, MapPin, Plus, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { UserAvatar } from "@/components/user-avatar";
 import type { TweetData } from "@/lib/types";
@@ -17,63 +17,28 @@ import {
 import { IMAGE_TYPES, MAX_CHIRP_IMAGES } from "@/lib/storage";
 import { checkImage, deleteStoredFiles, uploadChirpImage } from "@/lib/upload";
 import { cn } from "@/lib/utils";
+import { CharCounter, CHIRP_MAX } from "./char-counter";
+import {
+  ThreadPart,
+  newThreadPart,
+  threadPartOk,
+  type Attachment,
+  type ThreadPartDraft,
+} from "./thread-part";
 
-const MAX = 280;
-
-/** Circular progress showing how much of the 280-char limit is used. */
-function CharCounter({ count }: { count: number }) {
-  const remaining = MAX - count;
-  const r = 9;
-  const circumference = 2 * Math.PI * r;
-  const progress = Math.min(count / MAX, 1);
-  const color =
-    remaining < 0
-      ? "text-destructive"
-      : remaining <= 20
-        ? "text-amber-500"
-        : "text-primary";
-
-  return (
-    <div className="flex items-center gap-2">
-      {remaining <= 20 && (
-        <span className={cn("text-sm tabular-nums", color)}>{remaining}</span>
-      )}
-      <svg viewBox="0 0 24 24" className="size-6 -rotate-90" aria-hidden>
-        <circle
-          cx="12"
-          cy="12"
-          r={r}
-          fill="none"
-          strokeWidth="2"
-          className="stroke-muted"
-        />
-        <circle
-          cx="12"
-          cy="12"
-          r={r}
-          fill="none"
-          strokeWidth="2"
-          stroke="currentColor"
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference * (1 - progress)}
-          strokeLinecap="round"
-          className={cn(
-            color,
-            "transition-[stroke-dashoffset,color] duration-300 ease-out",
-          )}
-        />
-      </svg>
-    </div>
-  );
-}
-
-type Attachment = { id: string; file: File; preview: string };
+const MAX = CHIRP_MAX;
 
 export type ChirpExtras = {
   mediaUrls: string[];
   poll?: PollDraft;
   location?: string;
 };
+
+/** One chirp of a thread, ready to post. */
+export type ThreadPost = ChirpExtras & { content: string };
+
+/** The most chirps in one thread (matches the server). */
+const MAX_THREAD = 25;
 
 /** A toolbar icon button (image, GIF, poll, location). */
 function ToolButton({
@@ -115,6 +80,7 @@ export function TweetComposer({
   author,
   quoted,
   onPost,
+  onPostThread,
 }: {
   placeholder?: string;
   submitLabel?: string;
@@ -139,6 +105,13 @@ export function TweetComposer({
     content: string,
     extras: ChirpExtras,
   ) => string | void | Promise<string | void>;
+  /**
+   * Turns on threads (the "+" button). Called instead of onPost when there's
+   * more than one chirp; same return contract.
+   */
+  onPostThread?: (
+    parts: ThreadPost[],
+  ) => string | void | Promise<string | void>;
 }) {
   const [content, setContent] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -147,6 +120,8 @@ export function TweetComposer({
   const [poll, setPoll] = useState<PollDraft | null>(null);
   const [location, setLocation] = useState("");
   const [editingLocation, setEditingLocation] = useState(false);
+  // Later chirps of a thread (the first chirp is the main box above).
+  const [parts, setParts] = useState<ThreadPartDraft[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const gifInput = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -155,13 +130,18 @@ export function TweetComposer({
   const hasSomething = content.trim().length > 0 || attachments.length > 0;
   // A poll needs a question and every choice filled in.
   const pollOk = !poll || (content.trim().length > 0 && pollIsReady(poll));
-  const canPost = hasSomething && pollOk && count <= MAX && !pending;
+  const canPost =
+    hasSomething &&
+    pollOk &&
+    count <= MAX &&
+    parts.every(threadPartOk) &&
+    !pending;
   const full = attachments.length >= MAX_CHIRP_IMAGES;
 
   // Free the preview images' memory when the composer goes away.
   const latest = useRef(attachments);
   useEffect(() => {
-    latest.current = attachments;
+    latest.current = [...attachments, ...parts.flatMap((p) => p.attachments)];
   });
   useEffect(
     () => () => latest.current.forEach((a) => URL.revokeObjectURL(a.preview)),
@@ -203,20 +183,40 @@ export function TweetComposer({
     setError(undefined);
     let uploaded: string[] = [];
     try {
-      uploaded = await Promise.all(
-        attachments.map((a) => uploadChirpImage(author.id, a.file)),
-      );
-      const failure = await onPost?.(content.trim(), {
-        mediaUrls: uploaded,
+      const upload = (list: Attachment[]) =>
+        Promise.all(list.map((a) => uploadChirpImage(author.id, a.file)));
+      const firstUrls = await upload(attachments);
+      uploaded = [...firstUrls];
+      const first = {
+        mediaUrls: firstUrls,
         poll: poll ?? undefined,
         location: location.trim() || undefined,
-      });
+      };
+      let failure: string | void;
+      if (parts.length > 0 && onPostThread) {
+        const rest: ThreadPost[] = [];
+        for (const part of parts) {
+          const urls = await upload(part.attachments);
+          uploaded.push(...urls);
+          rest.push({ content: part.content.trim(), mediaUrls: urls });
+        }
+        failure = await onPostThread([
+          { content: content.trim(), ...first },
+          ...rest,
+        ]);
+      } else {
+        failure = await onPost?.(content.trim(), first);
+      }
       if (failure) {
         setError(failure);
         void deleteStoredFiles(uploaded); // the chirp wasn't saved; don't leave its images behind
         return;
       }
       attachments.forEach((a) => URL.revokeObjectURL(a.preview));
+      parts.forEach((p) =>
+        p.attachments.forEach((a) => URL.revokeObjectURL(a.preview)),
+      );
+      setParts([]);
       setAttachments([]);
       setContent("");
       setPoll(null);
@@ -232,13 +232,19 @@ export function TweetComposer({
 
   return (
     <div className="group/composer flex gap-3 border-b px-4 pt-3 pb-2">
-      {/* The avatar glows while you're writing. */}
-      <UserAvatar
-        name={author.displayName}
-        username={author.username}
-        src={author.avatarUrl ?? undefined}
-        className="ring-0 ring-primary/40 ring-offset-2 ring-offset-background transition-[box-shadow] duration-300 group-focus-within/composer:ring-2"
-      />
+      {/* The avatar glows while you're writing; in a thread, a line runs
+          down from it through each chirp's avatar. */}
+      <div className="flex shrink-0 flex-col items-center">
+        <UserAvatar
+          name={author.displayName}
+          username={author.username}
+          src={author.avatarUrl ?? undefined}
+          className="ring-0 ring-primary/40 ring-offset-2 ring-offset-background transition-[box-shadow] duration-300 group-focus-within/composer:ring-2"
+        />
+        {parts.length > 0 && (
+          <div aria-hidden className="mt-1 mb-12 w-0.5 flex-1 bg-border" />
+        )}
+      </div>
       <form
         className="flex min-w-0 flex-1 flex-col"
         onSubmit={(e) => {
@@ -380,6 +386,30 @@ export function TweetComposer({
           />
         )}
 
+        {/* The rest of the thread, each joined to the one above. */}
+        <AnimatePresence initial={false}>
+          {parts.map((part, i) => (
+            <ThreadPart
+              key={part.id}
+              part={part}
+              index={i + 1}
+              total={parts.length + 1}
+              author={author}
+              disabled={pending}
+              onError={setError}
+              onChange={(next) =>
+                setParts((list) =>
+                  list.map((p) => (p.id === next.id ? next : p)),
+                )
+              }
+              onRemove={() => {
+                part.attachments.forEach((a) => URL.revokeObjectURL(a.preview));
+                setParts((list) => list.filter((p) => p.id !== part.id));
+              }}
+            />
+          ))}
+        </AnimatePresence>
+
         {error && (
           <p role="alert" className="pb-2 text-sm text-destructive">
             {error}
@@ -440,6 +470,24 @@ export function TweetComposer({
                 <ListChecks className="size-5" />
               </ToolButton>
             )}
+            {onPostThread && !quoted && (
+              <ToolButton
+                label={
+                  parts.length + 1 >= MAX_THREAD
+                    ? `Up to ${MAX_THREAD} chirps in a thread`
+                    : "Add another chirp (thread)"
+                }
+                disabled={
+                  pending ||
+                  !hasSomething ||
+                  !parts.every(threadPartOk) ||
+                  parts.length + 1 >= MAX_THREAD
+                }
+                onClick={() => setParts((list) => [...list, newThreadPart()])}
+              >
+                <Plus className="size-5" />
+              </ToolButton>
+            )}
             <ToolButton
               label="Add location"
               active={editingLocation || Boolean(location.trim())}
@@ -469,10 +517,12 @@ export function TweetComposer({
               )}
             >
               {pending
-                ? attachments.length
+                ? attachments.length || parts.some((p) => p.attachments.length)
                   ? "Uploading…"
                   : "Sending…"
-                : submitLabel}
+                : parts.length > 0
+                  ? "Post all"
+                  : submitLabel}
             </motion.button>
           </div>
         </div>

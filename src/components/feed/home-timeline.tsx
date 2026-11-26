@@ -9,8 +9,10 @@ import { FeedTabs } from "@/components/layout/feed-tabs";
 import {
   TweetComposer,
   type ChirpExtras,
+  type ThreadPost,
 } from "@/components/tweet/tweet-composer";
 import {
+  CreateThreadMutation,
   CreateTweetMutation,
   ExploreFeedQuery,
   HomeFeedQuery,
@@ -68,6 +70,7 @@ export function HomeTimeline({
   // Bumped after posting so the feed restarts from the newest post.
   const [version, setVersion] = useState(0);
   const [, createTweet] = useMutation(CreateTweetMutation);
+  const [, createThread] = useMutation(CreateThreadMutation);
 
   useEffect(() => {
     if (!focusComposer) return;
@@ -75,6 +78,28 @@ export function HomeTimeline({
     document.getElementById(COMPOSER_ID)?.focus();
     router.replace("/", { scroll: false }); // tidy the URL
   }, [focusComposer, router]);
+
+  async function postThread(parts: ThreadPost[]) {
+    const result = await createThread({ parts });
+    if (result.error) {
+      return (
+        result.error.graphQLErrors[0]?.message ??
+        "Couldn't post your thread. Try again."
+      );
+    }
+    setVersion((v) => v + 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    const created = result.data?.createThread;
+    toast.success(`Thread posted (${parts.length} chirps)`, {
+      action: created
+        ? {
+            label: "View",
+            onClick: () =>
+              router.push(`/${created.author.username}/status/${created.id}`),
+          }
+        : undefined,
+    });
+  }
 
   async function post(content: string, extras: ChirpExtras) {
     const result = await createTweet({ content, ...extras });
@@ -111,7 +136,12 @@ export function HomeTimeline({
           }}
         />
       </div>
-      <TweetComposer author={viewer} onPost={post} textareaId={COMPOSER_ID} />
+      <TweetComposer
+        author={viewer}
+        onPost={post}
+        onPostThread={postThread}
+        textareaId={COMPOSER_ID}
+      />
       <TabPanel key={kind} direction={direction}>
         {kind === "explore" ? (
           <TweetFeed key={`explore-${version}`} source={SOURCES.explore} />

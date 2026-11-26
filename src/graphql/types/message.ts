@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { badInput, notFound, requireUser } from "../auth";
 import type { Builder } from "../builder";
+import { assertNotWalled } from "../safety";
 
 /** Each pair of users shares one conversation, keyed by their sorted ids. */
 const pairKeyFor = (a: string, b: string) => [a, b].sort().join(":");
@@ -96,6 +97,12 @@ export function addMessageTypes(builder: Builder) {
           ...query,
           where: {
             participants: { some: { userId: me } },
+            // Chats with a deactivated account are hidden until they return.
+            NOT: {
+              participants: {
+                some: { user: { deactivatedAt: { not: null } } },
+              },
+            },
             messages: { some: {} },
           },
           orderBy: { updatedAt: "desc" },
@@ -154,6 +161,7 @@ export function addMessageTypes(builder: Builder) {
           select: { id: true },
         });
         if (!exists) throw notFound("This account doesn't exist.");
+        await assertNotWalled(me, other, "You can't message this account.");
         return prisma.conversation.upsert({
           ...query,
           where: { pairKey: pairKeyFor(me, other) },
@@ -180,6 +188,16 @@ export function addMessageTypes(builder: Builder) {
         const me = requireUser(ctx);
         const conversationId = String(args.conversationId);
         await requireParticipant(conversationId, me);
+        // No messages across a block (the conversation stays readable).
+        const other = await prisma.conversationParticipant.findFirst({
+          where: { conversationId, userId: { not: me } },
+          select: { userId: true },
+        });
+        await assertNotWalled(
+          me,
+          other?.userId,
+          "You can't message this account.",
+        );
         const parsed = messageText.safeParse(args.content);
         if (!parsed.success) throw badInput(parsed.error.issues[0].message);
 
