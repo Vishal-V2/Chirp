@@ -58,6 +58,17 @@ export function addUserTypes(
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         }),
       }),
+      /** Chirps and replies with images or GIFs (the profile "Media" tab). */
+      media: t.relatedConnection("tweets", {
+        cursor: "id",
+        query: (_args, ctx) => ({
+          where: {
+            mediaUrls: { isEmpty: false },
+            author: ctx.userId ? notWalledFrom(ctx.userId) : activeUser,
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        }),
+      }),
       /** This user's replies (the profile "Replies" tab). */
       replies: t.relatedConnection("tweets", {
         cursor: "id",

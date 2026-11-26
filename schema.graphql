@@ -302,6 +302,7 @@ type User {
   followingCount: Int!
   followsViewer: Boolean!
   id: ID!
+  media(after: String, before: String, first: Int, last: Int): UserMediaConnection!
   replies(after: String, before: String, first: Int, last: Int): UserRepliesConnection!
   timeline(after: String, before: String, first: Int, last: Int): UserTimelineConnection!
   tweetCount: Int!
@@ -330,6 +331,16 @@ type UserFollowingConnection {
 type UserFollowingConnectionEdge {
   cursor: String!
   node: Follow!
+}
+
+type UserMediaConnection {
+  edges: [UserMediaConnectionEdge!]!
+  pageInfo: PageInfo!
+}
+
+type UserMediaConnectionEdge {
+  cursor: String!
+  node: Tweet!
 }
 
 type UserRepliesConnection {

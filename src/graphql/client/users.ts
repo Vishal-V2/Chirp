@@ -261,3 +261,29 @@ export const SafetyListsQuery = graphql(`
     }
   }
 `);
+
+/** The profile Media tab: chirps with images, newest first. */
+export const UserMediaQuery = graphql(`
+  query UserMedia($username: String!, $first: Int!, $after: String) {
+    user(username: $username) {
+      id
+      media(first: $first, after: $after) {
+        edges {
+          node {
+            id
+            content
+            mediaUrls
+            author {
+              id
+              username
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`);

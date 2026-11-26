@@ -21,6 +21,7 @@ const CONNECTION_TYPES = [
   "TweetRepliesConnection",
   "UserFollowersConnection",
   "UserFollowingConnection",
+  "UserMediaConnection",
   "UserRepliesConnection",
   "UserTweetsConnection",
 ];
@@ -137,6 +138,7 @@ export const graphcache = cacheExchange({
             "tweets",
             "timeline",
             "replies",
+            "media",
             "tweetCount",
           ]);
         }
@@ -152,6 +154,7 @@ export const graphcache = cacheExchange({
             "tweets",
             "timeline",
             "replies",
+            "media",
             "tweetCount",
           ]);
         }

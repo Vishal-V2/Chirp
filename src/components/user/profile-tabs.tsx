@@ -4,15 +4,16 @@ import { useState } from "react";
 import { TweetFeed, feedSource } from "@/components/feed/tweet-feed";
 import { FeedTabs } from "@/components/layout/feed-tabs";
 import { TabPanel, nextDirection } from "@/components/motion/tab-panel";
+import { MediaGrid } from "./media-grid";
 import {
   LikedTweetsQuery,
   UserPostsQuery,
   UserRepliesQuery,
 } from "@/graphql/client/users";
 
-type Tab = "Chirps" | "Replies" | "Likes";
+type Tab = "Chirps" | "Replies" | "Media" | "Likes";
 
-/** Posts / Replies / Likes (Likes are private, so only on your own profile). */
+/** Chirps / Replies / Media / Likes (Likes are private, so only on your own profile). */
 export function ProfileTabs({
   username,
   displayName,
@@ -25,8 +26,8 @@ export function ProfileTabs({
   const [tab, setTab] = useState<Tab>("Chirps");
   const [direction, setDirection] = useState(0);
   const tabs: Tab[] = isSelf
-    ? ["Chirps", "Replies", "Likes"]
-    : ["Chirps", "Replies"];
+    ? ["Chirps", "Replies", "Media", "Likes"]
+    : ["Chirps", "Replies", "Media"];
 
   return (
     <>
@@ -81,6 +82,13 @@ export function ProfileTabs({
                 body: "Replies will show up here.",
               },
             })}
+          />
+        )}
+        {tab === "Media" && (
+          <MediaGrid
+            key={`media-${username}`}
+            username={username}
+            isSelf={isSelf}
           />
         )}
         {tab === "Likes" && isSelf && (
