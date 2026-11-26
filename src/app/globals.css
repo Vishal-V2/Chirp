@@ -219,6 +219,35 @@
   }
 }
 
+/*
+ * Phones: the top header and bottom nav get out of the way while you scroll
+ * down, and come back when you scroll up (see useHideBarsOnScroll).
+ */
+@media (max-width: 639.98px) {
+  .autohide-top,
+  .autohide-bottom,
+  .autohide-fab {
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  html[data-bars="hidden"] .autohide-top {
+    transform: translateY(-100%);
+  }
+  html[data-bars="hidden"] .autohide-bottom {
+    transform: translateY(100%);
+  }
+  /* The write button drops down into the space the nav leaves. */
+  html[data-bars="hidden"] .autohide-fab {
+    transform: translateY(3.5rem);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .autohide-top,
+  .autohide-bottom,
+  .autohide-fab {
+    transition: none;
+  }
+}
+
 /* Embedded X posts (react-tweet): fit the chirp column and Chirp's colours. */
 .link-embed .react-tweet-theme {
   --tweet-container-margin: 0.75rem 0 0;

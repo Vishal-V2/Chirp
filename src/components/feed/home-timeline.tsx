@@ -100,7 +100,7 @@ export function HomeTimeline({
 
   return (
     <>
-      <div className="sticky top-0 z-10 border-b bg-background/85 backdrop-blur-md">
+      <div className="autohide-top sticky top-0 z-10 border-b bg-background/85 backdrop-blur-md">
         {header}
         <FeedTabs
           tabs={Object.keys(TABS)}

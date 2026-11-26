@@ -281,9 +281,9 @@ export function TweetComposer({
               }
             }}
             placeholder={poll ? "Ask a question" : placeholder}
-            rows={2}
+            rows={1}
             disabled={pending}
-            className="field-sizing-content min-h-14 w-full resize-none bg-transparent py-2 text-xl outline-none placeholder:text-muted-foreground disabled:opacity-60"
+            className="field-sizing-content w-full resize-none bg-transparent py-2 text-xl outline-none placeholder:text-muted-foreground disabled:opacity-60"
           />
           {mentions.list}
         </div>

@@ -115,7 +115,7 @@ export function ExploreView({ initialQuery }: { initialQuery: string }) {
 
   return (
     <>
-      <div className="sticky top-0 z-10 border-b bg-background/85 backdrop-blur-md">
+      <div className="autohide-top sticky top-0 z-10 border-b bg-background/85 backdrop-blur-md">
         <form
           role="search"
           className="px-4 pt-2 pb-1"

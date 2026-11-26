@@ -6,21 +6,26 @@ import { UnreadBadge } from "@/components/messages/unread-badge";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 import { Feather } from "lucide-react";
+import { useHideBarsOnScroll } from "@/hooks/use-hide-bars-on-scroll";
 import { getNavItems } from "./nav-items";
 
 export function MobileNav({ username }: { username: string }) {
   const pathname = usePathname();
+  // Not in an open chat: its message box sits on top of the bottom nav.
+  useHideBarsOnScroll(!pathname.startsWith("/messages/"), pathname);
 
   return (
     <>
-      <Link
-        href="/?compose=1"
-        aria-label="Write a chirp"
-        className="pressable fixed right-4 bottom-20 z-20 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 sm:hidden"
-      >
-        <Feather className="size-6" />
-      </Link>
-      <nav className="fixed inset-x-0 bottom-0 z-20 flex h-14 items-center justify-around border-t bg-background/90 backdrop-blur sm:hidden">
+      <div className="autohide-fab fixed right-4 bottom-20 z-20 sm:hidden">
+        <Link
+          href="/?compose=1"
+          aria-label="Write a chirp"
+          className="pressable flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 sm:hidden"
+        >
+          <Feather className="size-6" />
+        </Link>
+      </div>
+      <nav className="autohide-bottom fixed inset-x-0 bottom-0 z-20 flex h-14 items-center justify-around border-t bg-background/90 backdrop-blur sm:hidden">
         {getNavItems(username)
           .filter((item) => !item.desktopOnly)
           .map(({ href, label, icon: Icon, unreadBadge }) => {

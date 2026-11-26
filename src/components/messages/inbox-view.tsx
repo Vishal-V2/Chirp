@@ -38,7 +38,7 @@ export function InboxView() {
 
   return (
     <>
-      <div className="sticky top-0 z-10 flex h-[53px] items-center justify-between border-b bg-background/85 px-4 backdrop-blur-md">
+      <div className="autohide-top sticky top-0 z-10 flex h-[53px] items-center justify-between border-b bg-background/85 px-4 backdrop-blur-md">
         <h1 className="font-heading text-xl font-bold tracking-tight">
           Messages
         </h1>
