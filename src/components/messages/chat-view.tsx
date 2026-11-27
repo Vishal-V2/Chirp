@@ -31,6 +31,7 @@ import { MessageImages } from "./message-images";
 import { MessageActions } from "./message-actions";
 import { RequestBar } from "./request-bar";
 import { ChatAvatar, chatTitle, othersIn } from "./chat-identity";
+import { MessageText, mentionsUser, useGroupMentions } from "./chat-mentions";
 import { toast } from "sonner";
 import { IMAGE_TYPES } from "@/lib/storage";
 import {
@@ -147,6 +148,17 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   const nameOf = (userId: string) =>
     conversation?.participants.find((p) => p.user.id === userId)?.user
       .displayName ?? "Someone";
+
+  // Group @mentions: suggestions while typing, highlights in messages.
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const members = conversation ? othersIn(conversation, viewer.id) : [];
+  const mentions = useGroupMentions({
+    textarea: textareaRef,
+    text,
+    setText,
+    members,
+    enabled: isGroup,
+  });
 
   /** Mark the chat read, and (if your receipts are on) tell the others. */
   function readNow() {
@@ -623,9 +635,24 @@ export function ChatView({ conversationId }: { conversationId: string }) {
                           m.status === "sending" && "opacity-70",
                           m.status === "failed" &&
                             "bg-destructive/15 text-destructive",
+                          // Mentions you (by name or @all): stand out.
+                          isGroup &&
+                            !mine &&
+                            mentionsUser(m.content, viewer.username) &&
+                            "ring-2 ring-primary",
                         )}
                       >
-                        {m.content}
+                        {isGroup ? (
+                          <MessageText
+                            text={m.content}
+                            members={conversation.participants.map(
+                              (p) => p.user,
+                            )}
+                            mine={mine}
+                          />
+                        ) : (
+                          m.content
+                        )}
                       </p>
                     )}
                   </MessageActions>
@@ -757,38 +784,47 @@ export function ChatView({ conversationId }: { conversationId: string }) {
             >
               <ImageIcon className="size-5" />
             </button>
-            <textarea
-              value={text}
-              onChange={(e) => {
-                setText(e.target.value);
-                if (e.target.value.trim()) notifyTyping();
-                else notifyStopped();
-              }}
-              onKeyDown={(e) => {
-                // Enter sends; Shift+Enter adds a new line.
-                if (
-                  e.key === "Enter" &&
-                  !e.shiftKey &&
-                  !e.nativeEvent.isComposing
-                ) {
-                  e.preventDefault();
-                  submit();
-                }
-              }}
-              onPaste={(e) => {
-                // Pasting an image attaches it.
-                const files = [...e.clipboardData.files];
-                if (files.some((f) => f.type.startsWith("image/"))) {
-                  e.preventDefault();
-                  addFiles(files);
-                }
-              }}
-              placeholder="Write a message"
-              aria-label="Write a message"
-              rows={1}
-              maxLength={MAX}
-              className="field-sizing-content max-h-40 min-h-10 flex-1 resize-none rounded-3xl bg-muted px-4 py-2.5 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-primary"
-            />
+            <div className="relative min-w-0 flex-1">
+              {mentions.list}
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={(e) => {
+                  setText(e.target.value);
+                  mentions.trackCaret(e);
+                  if (e.target.value.trim()) notifyTyping();
+                  else notifyStopped();
+                }}
+                onSelect={mentions.trackCaret}
+                onClick={mentions.trackCaret}
+                onKeyDown={(e) => {
+                  // The @mention list gets first go at arrows / Enter / Esc.
+                  if (mentions.onKeyDown(e)) return;
+                  // Enter sends; Shift+Enter adds a new line.
+                  if (
+                    e.key === "Enter" &&
+                    !e.shiftKey &&
+                    !e.nativeEvent.isComposing
+                  ) {
+                    e.preventDefault();
+                    submit();
+                  }
+                }}
+                onPaste={(e) => {
+                  // Pasting an image attaches it.
+                  const files = [...e.clipboardData.files];
+                  if (files.some((f) => f.type.startsWith("image/"))) {
+                    e.preventDefault();
+                    addFiles(files);
+                  }
+                }}
+                placeholder="Write a message"
+                aria-label="Write a message"
+                rows={1}
+                maxLength={MAX}
+                className="field-sizing-content block max-h-40 min-h-10 w-full resize-none rounded-3xl bg-muted px-4 py-2.5 text-[15px] outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-primary"
+              />
+            </div>
             <motion.button
               type="submit"
               aria-label="Send"

@@ -10,6 +10,10 @@ import {
 } from "@/components/messages/realtime-provider";
 import { useViewer } from "@/components/providers/viewer-provider";
 import { PingSenderQuery } from "@/graphql/client/messages";
+import {
+  mentionsEveryone,
+  mentionsUser,
+} from "@/components/messages/chat-mentions";
 import { PingNotificationsQuery } from "@/graphql/client/notifications";
 import {
   claimPing,
@@ -145,10 +149,18 @@ export function Pinger() {
     const senderName =
       chat?.participants.find((p) => p.user.id === m.senderId)?.user
         .displayName ?? "Someone";
+    const groupName = chat.name || "your group";
+    // @mentions in groups get their own heading.
+    const mentioned =
+      chat.isGroup && viewer && mentionsUser(m.content, viewer.username);
     await showPopup({
-      title: chat?.isGroup
-        ? `${senderName} in ${chat.name || "your group"}`
-        : (sender?.displayName ?? senderName),
+      title: mentioned
+        ? mentionsEveryone(m.content)
+          ? `${senderName} mentioned everyone in ${groupName}`
+          : `${senderName} mentioned you in ${groupName}`
+        : chat.isGroup
+          ? `${senderName} in ${groupName}`
+          : (sender?.displayName ?? senderName),
       body: m.content
         ? snippet(m.content)
         : m.mediaPaths?.length > 1
