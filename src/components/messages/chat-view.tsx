@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { Image as ImageIcon, RotateCcw, SendHorizontal, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -19,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useLiveMessages } from "./realtime-provider";
 import { useTyping } from "./use-typing";
+import { setReadingNow } from "@/lib/reading-now";
 import { MessageImages } from "./message-images";
 import { MessageActions } from "./message-actions";
 import { RequestBar } from "./request-bar";
@@ -107,6 +115,9 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   const [{ data, error }, reexecute] = useQuery({
     query: ConversationQuery,
     variables: { id: conversationId, first },
+    // Show the saved copy at once, but always check the server too, so
+    // "Seen" (and anything else that changed while you were away) is current.
+    requestPolicy: "cache-and-network",
   });
   const [, send] = useMutation(SendMessageMutation);
   const [, markRead] = useMutation(MarkConversationReadMutation);
@@ -161,7 +172,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
 
   // Mark as read when opened (and again when their messages arrive).
   useEffect(() => {
-    if (conversation) readNow();
+    maybeRead();
   }, [conversation?.id, conversationId, receiptsOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLiveMessages((m) => {
@@ -184,7 +195,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
     if (m.systemText) reexecute({ requestPolicy: "network-only" });
     if (m.senderId !== viewer.id) {
       clearTyper(m.senderId);
-      if (document.visibilityState === "visible") readNow();
+      // Marked read once it's actually on screen (see maybeRead).
     }
   });
 
@@ -215,9 +226,95 @@ export function ChatView({ conversationId }: { conversationId: string }) {
           ? "Seen by everyone"
           : `Seen by ${seenNames.join(", ")}`;
 
+  // Back on this tab/window: someone may have read your message meanwhile.
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") {
+        reexecute({ requestPolicy: "network-only" });
+      }
+    };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [reexecute]);
+
   // Keep the newest message in view (unless you've scrolled up to read history).
   const bottom = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLFormElement>(null);
   const stuckToBottom = useRef(true);
+  /**
+   * Make sure the end of the chat sits above the message box: if the box
+   * covers it, scroll down by exactly the overlap.
+   */
+  const revealEnd = () => {
+    const end = bottom.current?.getBoundingClientRect();
+    const box = composer.current?.getBoundingClientRect();
+    if (end && box && end.top > box.top - 4) {
+      window.scrollBy({ top: end.top - box.top + 8, behavior: "instant" });
+    }
+  };
+  /** Scroll to the very end, then make sure the message box covers nothing. */
+  const scrollToBottom = (behavior: ScrollBehavior) => {
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior });
+    if (behavior === "instant") requestAnimationFrame(revealEnd);
+    else setTimeout(revealEnd, 400); // after the smooth scroll settles
+  };
+
+  // Read = you're at (or within a message of) the end of the chat, in a
+  // visible tab. Checked when messages arrive, as you scroll, and when you
+  // come back to the tab or window.
+  const readUpTo = useRef<string | undefined>(undefined);
+  const newestId = messages.at(-1)?.id;
+  const nearEnd = () =>
+    window.innerHeight + window.scrollY >=
+    document.documentElement.scrollHeight - 160;
+  function maybeRead() {
+    const reading = document.visibilityState === "visible" && nearEnd();
+    setReadingNow(reading ? conversationId : null);
+    if (!conversation || !newestId || newestId.startsWith("temp-")) return;
+    if (!reading) return;
+    if (readUpTo.current === newestId) return;
+    readUpTo.current = newestId;
+    readNow();
+  }
+  useEffect(() => {
+    maybeRead();
+  }); // cheap: does nothing unless there's something new to mark read
+  // Leaving the chat: you're no longer reading it.
+  useEffect(() => () => setReadingNow(null), [conversationId]);
+  useEffect(() => {
+    const check = () => maybeRead();
+    window.addEventListener("scroll", check, { passive: true });
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      window.removeEventListener("scroll", check);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }); // re-bound each render so it sees the newest message
+  // Photos, "Seen" and banners load after the first scroll: stay at the end.
+  // A callback ref, so it re-attaches if the chat area is ever re-created
+  // (e.g. a refetch briefly showing the loading state).
+  const resizeWatcher = useRef<ResizeObserver | null>(null);
+  const log = useCallback((el: HTMLDivElement | null) => {
+    resizeWatcher.current?.disconnect();
+    resizeWatcher.current = null;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      if (stuckToBottom.current) scrollToBottom("instant");
+    });
+    ro.observe(el);
+    resizeWatcher.current = ro;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Fresh data (a refetch after sending or reading): stay at the end.
+  useLayoutEffect(() => {
+    if (stuckToBottom.current && !firstScroll.current)
+      scrollToBottom("instant");
+  }, [conversation]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onScroll = () => {
       stuckToBottom.current =
@@ -231,13 +328,10 @@ export function ChatView({ conversationId }: { conversationId: string }) {
   useLayoutEffect(() => {
     if (messages.length === 0 && !otherTyping) return;
     if (firstScroll.current || stuckToBottom.current) {
-      bottom.current?.scrollIntoView({
-        block: "end",
-        behavior: firstScroll.current ? "instant" : "smooth",
-      });
+      scrollToBottom(firstScroll.current ? "instant" : "smooth");
       firstScroll.current = false;
     }
-  }, [messages.length, otherTyping]);
+  }, [messages.length, otherTyping]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function addFiles(files: Iterable<File>) {
     const picked = [...files].filter((f) => f.type.startsWith("image/"));
@@ -410,6 +504,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
       </header>
 
       <div
+        ref={log}
         className="flex-1 pt-3"
         role="log"
         aria-live="polite"
@@ -595,6 +690,7 @@ export function ChatView({ conversationId }: { conversationId: string }) {
         </p>
       ) : (
         <form
+          ref={composer}
           onSubmit={(e) => {
             e.preventDefault();
             submit();

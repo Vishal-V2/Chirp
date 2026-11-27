@@ -7,6 +7,7 @@ import { UnreadMessageCountQuery } from "@/graphql/client/messages";
 import { cn } from "@/lib/utils";
 import { UnreadNotificationCountQuery } from "@/graphql/client/notifications";
 import { useLiveMessages, useLiveNotifications } from "./realtime-provider";
+import { isReadingNow } from "@/lib/reading-now";
 
 /** Live unread count for Messages or Notifications; pops in when something arrives. */
 export function UnreadBadge({
@@ -28,9 +29,11 @@ export function UnreadBadge({
 
   // Something arrived over the WebSocket: refresh the count.
   useLiveMessages((m) => {
-    if (kind === "messages" && m.senderId !== viewer?.id) {
-      refetchMessages({ requestPolicy: "network-only" });
-    }
+    if (kind !== "messages" || m.senderId === viewer?.id) return;
+    // You're looking at that chat: it's about to be marked read, which
+    // refreshes the count itself, so don't flash it up as unread meanwhile.
+    if (isReadingNow(m.conversationId)) return;
+    refetchMessages({ requestPolicy: "network-only" });
   });
   useLiveNotifications(() => {
     if (kind === "notifications")
